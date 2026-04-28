@@ -1,4 +1,4 @@
-.PHONY: install dev-backend dev-frontend dev build run prod-up prod-down prod-logs backup-sqlite deploy destroy clean
+.PHONY: install dev-backend dev-frontend dev build run prod-up prod-down prod-logs backup-sqlite clean
 
 # ── Local dev (no Docker) ─────────────────────────────────────────────────
 
@@ -50,14 +50,6 @@ prod-logs:
 backup-sqlite:
 	mkdir -p data/backups
 	test -f data/counselai.sqlite && cp data/counselai.sqlite data/backups/counselai-$$(date +%Y%m%d%H%M%S).sqlite
-
-# ── AWS deploy / destroy via existing terraform ────────────────────────────
-
-deploy:
-	./scripts/deploy.sh
-
-destroy:
-	./scripts/destroy.sh
 
 # ── Tidy ──────────────────────────────────────────────────────────────────
 

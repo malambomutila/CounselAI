@@ -1,0 +1,418 @@
+/* Editorial legal-tech UI — fonts, design tokens, agent-card system.
+   Mirrors the rules in the (now-deleted) ui/theme.py CUSTOM_CSS, ported to
+   Tailwind layers so component classes can compose with @apply. */
+
+@import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght,SOFT@9..144,400..900,0..100&family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --primary:        #0F52FF;
+    --primary-dark:   #0a3fcc;
+    --primary-tint:   rgba(15, 82, 255, 0.08);
+    --primary-ring:   rgba(15, 82, 255, 0.18);
+
+    --ink:        #0f172a;
+    --ink-muted:  #475569;
+    --ink-subtle: #64748b;
+    --hairline:   #e2e8f0;
+    --canvas:     #f7f9fb;
+
+    --slate-tint: rgba(15, 23, 42, 0.05);
+    --amber-tint: rgba(217, 119, 6, 0.08);
+    --rose-tint:  rgba(225, 29, 72, 0.08);
+  }
+
+  html, body {
+    background: var(--canvas);
+    color: var(--ink);
+    font-family: 'Inter', system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  body {
+    min-height: 100vh;
+  }
+
+  h1, h2, h3, h4 {
+    font-family: 'Fraunces', 'Source Serif 4', Georgia, serif;
+    font-feature-settings: "ss01", "ss02";
+    font-variation-settings: "opsz" 144, "SOFT" 30, "wght" 600;
+    letter-spacing: -0.01em;
+    color: var(--ink);
+  }
+
+  /* Inputs always paint dark text on white — Gradio's old white-on-white
+     input bug taught us to be explicit. */
+  input, textarea, select {
+    color: var(--ink);
+    background: #ffffff;
+    caret-color: var(--primary);
+  }
+  input::placeholder, textarea::placeholder {
+    color: #94a3b8;
+    opacity: 1;
+  }
+}
+
+@layer components {
+  /* ── Cards ─────────────────────────────────────────────────────────── */
+  .card {
+    @apply bg-white border border-hairline rounded-lg shadow-elev;
+  }
+  .card-padded {
+    @apply card p-7;
+  }
+
+  /* ── Hero ──────────────────────────────────────────────────────────── */
+  .hero h1 {
+    font-variation-settings: "opsz" 144, "SOFT" 30, "wght" 600;
+    font-size: 44px;
+    line-height: 1.05;
+    letter-spacing: -0.025em;
+    margin: 0 0 12px 0;
+  }
+  .hero p {
+    font-size: 15.5px;
+    line-height: 1.65;
+    color: var(--ink-muted);
+    max-width: 640px;
+  }
+
+  /* ── Sidebar ───────────────────────────────────────────────────────── */
+  .sidebar {
+    background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%),
+                repeating-linear-gradient(180deg, transparent 0 31px, rgba(15, 23, 42, 0.018) 31px 32px);
+    background-blend-mode: normal, multiply;
+    border-right: 1px solid var(--hairline);
+    min-height: 100vh;
+  }
+  .section-label {
+    font-size: 10.5px;
+    text-transform: uppercase;
+    letter-spacing: 0.14em;
+    color: #94a3b8;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .section-label::after {
+    content: "";
+    flex: 1;
+    height: 1px;
+    background: var(--hairline);
+  }
+
+  /* History row — mirrors the Gradio dataframe-as-card-list look. */
+  .history-row {
+    @apply bg-white border border-hairline rounded-lg p-3 cursor-pointer transition-all;
+    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+  }
+  .history-row:hover {
+    border-color: var(--primary);
+    transform: translateX(2px);
+    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04), 0 4px 12px rgba(15, 23, 42, 0.04);
+  }
+  .history-row.is-active {
+    border-color: var(--primary);
+    background: var(--primary-tint);
+  }
+  .history-id {
+    font-family: 'JetBrains Mono', ui-monospace, monospace;
+    font-size: 10px;
+    color: #94a3b8;
+    letter-spacing: 0.02em;
+  }
+  .history-title {
+    font-weight: 600;
+    color: var(--ink);
+    font-size: 13.5px;
+    line-height: 1.35;
+    margin-top: 2px;
+  }
+  .history-meta {
+    font-size: 11px;
+    color: var(--ink-subtle);
+    margin-top: 2px;
+  }
+
+  /* ── Profile chip + sign-out ───────────────────────────────────────── */
+  .profile-chip {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 12px;
+    background: #ffffff;
+    border: 1px solid var(--hairline);
+    border-radius: 10px;
+    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+  }
+  .profile-avatar {
+    flex: 0 0 auto;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+    color: #ffffff;
+    font-family: 'Fraunces', serif;
+    font-weight: 700;
+    font-size: 14px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .profile-name {
+    font-size: 12.5px;
+    font-weight: 600;
+    color: var(--ink);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .profile-sub {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: #94a3b8;
+    font-weight: 600;
+    margin-top: 2px;
+  }
+  .signout-btn {
+    @apply flex items-center justify-center w-full gap-2 py-2 px-3 bg-white border border-hairline rounded-sm text-ink-muted text-xs font-semibold transition-all;
+    cursor: pointer;
+  }
+  .signout-btn:hover {
+    border-color: var(--rose-tint, #f43f5e);
+    color: #e11d48;
+    background: var(--rose-tint);
+  }
+
+  /* ── Agent card ─────────────────────────────────────────────────────── */
+  .agent-card {
+    @apply card overflow-hidden p-0 transition-shadow;
+  }
+  .agent-card:hover { @apply shadow-elev-lg; }
+  .agent-header {
+    padding: 16px 20px 16px 24px;
+    border-bottom: 1px solid var(--hairline);
+    border-left: 4px solid #cbd5e1;
+    background: linear-gradient(90deg, var(--slate-tint), transparent 60%);
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .agent-header h3 {
+    font-variation-settings: "opsz" 30, "SOFT" 20, "wght" 600;
+    font-size: 19px;
+    font-weight: 600;
+    margin: 0;
+  }
+  .agent-header h3::before {
+    content: "";
+    display: inline-block;
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    margin-right: 10px;
+    vertical-align: middle;
+    background: #cbd5e1;
+    box-shadow: 0 0 0 3px rgba(15, 23, 42, 0.04);
+  }
+
+  /* Per-agent accent colours */
+  .agent-card[data-agent="plaintiff"] .agent-header {
+    border-left-color: var(--primary);
+    background: linear-gradient(90deg, var(--primary-tint), transparent 60%);
+  }
+  .agent-card[data-agent="plaintiff"] .agent-header h3::before {
+    background: var(--primary);
+    box-shadow: 0 0 0 3px var(--primary-tint);
+  }
+  .agent-card[data-agent="defense"] .agent-header {
+    border-left-color: #0f172a;
+    background: linear-gradient(90deg, var(--slate-tint), transparent 60%);
+  }
+  .agent-card[data-agent="defense"] .agent-header h3::before {
+    background: #0f172a;
+    box-shadow: 0 0 0 3px var(--slate-tint);
+  }
+  .agent-card[data-agent="expert"] .agent-header {
+    border-left-color: #d97706;
+    background: linear-gradient(90deg, var(--amber-tint), transparent 60%);
+  }
+  .agent-card[data-agent="expert"] .agent-header h3::before {
+    background: #d97706;
+    box-shadow: 0 0 0 3px var(--amber-tint);
+  }
+  .agent-card[data-agent="judge"] .agent-header {
+    border-left-color: #e11d48;
+    background: linear-gradient(90deg, var(--rose-tint), transparent 60%);
+  }
+  .agent-card[data-agent="judge"] .agent-header h3::before {
+    background: #e11d48;
+    box-shadow: 0 0 0 3px var(--rose-tint);
+  }
+
+  .agent-body {
+    padding: 24px;
+    min-height: 220px;
+    color: var(--ink);
+    line-height: 1.7;
+    font-size: 14.5px;
+  }
+  .agent-body :is(p, ul, ol, li, h1, h2, h3, h4) { color: var(--ink); }
+  .agent-body strong { color: var(--ink); font-weight: 700; }
+  .agent-body em { font-style: italic; color: var(--ink); }
+  .agent-body.is-placeholder p {
+    color: #94a3b8;
+    font-style: italic;
+  }
+
+  .agent-footer {
+    background: #f8fafc;
+    border-top: 1px solid var(--hairline);
+    padding: 12px 16px;
+    display: flex;
+    gap: 8px;
+  }
+  .agent-footer input {
+    @apply flex-1 px-3 py-2 border border-hairline rounded-sm text-sm;
+  }
+  .agent-footer button {
+    @apply px-4 py-2 rounded-sm text-white text-sm font-semibold transition-colors;
+    background: var(--primary);
+    min-width: 80px;
+  }
+  .agent-footer button:hover { background: var(--primary-dark); }
+  .agent-footer button:disabled {
+    background: #cbd5e1;
+    cursor: not-allowed;
+  }
+
+  /* ── Final Judgment CTA ─────────────────────────────────────────────── */
+  .final-judgment-btn {
+    background: linear-gradient(180deg, #1e293b, #0f172a);
+    color: #ffffff;
+    font-family: 'Fraunces', serif;
+    font-variation-settings: "opsz" 30, "SOFT" 20, "wght" 600;
+    font-weight: 600;
+    font-size: 16px;
+    padding: 16px 40px;
+    border-radius: 999px;
+    letter-spacing: 0.005em;
+    border: 1px solid #0f172a;
+    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04), 0 4px 12px rgba(15, 23, 42, 0.04),
+                inset 0 1px 0 rgba(255, 255, 255, 0.08);
+    transition: transform 0.12s ease, box-shadow 0.12s ease;
+    cursor: pointer;
+  }
+  .final-judgment-btn:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04), 0 12px 32px rgba(15, 23, 42, 0.08),
+                inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  }
+  .final-judgment-btn:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+    transform: none;
+  }
+
+  /* ── Memo + Scores cards ───────────────────────────────────────────── */
+  .memo-card, .scores-card {
+    @apply card p-7 mb-8;
+  }
+  .memo-card h3, .scores-card h3 {
+    font-variation-settings: "opsz" 60, "SOFT" 30, "wght" 600;
+    font-size: 26px;
+    font-weight: 600;
+    margin: 0 0 18px 0;
+    letter-spacing: -0.015em;
+  }
+
+  /* Headings inside the memo body itself (the strategist's section titles).
+     These come from react-markdown's ### parsing. The card's own H3 (above)
+     is the card title and stays larger; section headings are smaller, with
+     a gap above so each section reads as a discrete block instead of running
+     into the previous list. */
+  .memo-card .agent-body h3 {
+    font-family: 'Fraunces', 'Source Serif 4', Georgia, serif;
+    font-variation-settings: "opsz" 30, "SOFT" 20, "wght" 700;
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--ink);
+    letter-spacing: -0.005em;
+    margin: 22px 0 8px 0;
+  }
+  .memo-card .agent-body h3:first-child { margin-top: 0; }
+  .memo-card .agent-body h3 strong { font-weight: 700; }
+  .memo-card .agent-body ul,
+  .memo-card .agent-body ol {
+    margin: 0 0 6px 0;
+    padding-left: 22px;
+  }
+  .memo-card .agent-body li { margin-bottom: 4px; }
+
+  .scores-table {
+    border-collapse: collapse;
+    width: 100%;
+  }
+  .scores-table thead th {
+    font-size: 10.5px;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    color: var(--ink-subtle);
+    font-weight: 600;
+    border-bottom: 1px solid var(--hairline);
+    padding: 10px 12px;
+    background: #f8fafc;
+    text-align: left;
+  }
+  .scores-table tbody td {
+    border-bottom: 1px solid var(--hairline);
+    padding: 12px;
+    font-size: 14px;
+    color: var(--ink);
+  }
+  .scores-table tbody td:first-child { font-weight: 600; }
+  .scores-table tbody td:nth-child(2),
+  .scores-table tbody td:nth-child(3) {
+    font-family: 'JetBrains Mono', ui-monospace, monospace;
+    font-size: 13.5px;
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* ── Disclaimer ─────────────────────────────────────────────────────── */
+  .disclaimer {
+    border-top: 1px solid var(--hairline);
+    padding-top: 24px;
+    margin-top: 36px;
+    font-size: 11.5px;
+    color: #94a3b8;
+    text-align: center;
+    line-height: 1.7;
+    font-style: italic;
+  }
+
+  /* ── Primary CTA buttons ───────────────────────────────────────────── */
+  .cta-primary {
+    background: var(--primary);
+    color: #ffffff;
+    font-weight: 600;
+    padding: 12px 32px;
+    border-radius: 6px;
+    border: none;
+    letter-spacing: 0.005em;
+    font-size: 14.5px;
+    cursor: pointer;
+    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04), inset 0 1px 0 rgba(255, 255, 255, 0.12);
+    transition: background 0.15s ease;
+  }
+  .cta-primary:hover { background: var(--primary-dark); }
+  .cta-primary:disabled {
+    background: #cbd5e1;
+    cursor: not-allowed;
+  }
+}

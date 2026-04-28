@@ -44,6 +44,12 @@ variable "clerk_frontend_api_url" {
   default     = "https://winning-weevil-72.clerk.accounts.dev"
 }
 
+variable "clerk_authorized_parties" {
+  description = "Comma-separated origins allowed in Clerk JWT azp claim. Empty = check skipped. Set to the App Runner URL after the first apply."
+  type        = string
+  default     = ""
+}
+
 # ──────────────────────────────────────────────────────────────────────────────
 # Secrets — sourced from TF_VAR_* env vars by scripts/deploy.sh.
 # Never set these in terraform.tfvars; never commit real values.

@@ -176,6 +176,10 @@ resource "aws_apprunner_service" "this" {
           CLERK_SECRET_KEY                  = var.clerk_secret_key
           CLERK_JWKS_URL                    = var.clerk_jwks_url
           CLERK_FRONTEND_API_URL            = var.clerk_frontend_api_url
+          # Same-origin in App Runner: the only legitimate ``azp`` is the
+          # service's own URL. Set after the first apply (chicken-and-egg —
+          # the URL is unknown until creation), then re-apply.
+          CLERK_AUTHORIZED_PARTIES = var.clerk_authorized_parties
 
           # Storage
           DDB_TABLE  = aws_dynamodb_table.this.name

@@ -1,0 +1,53 @@
+.PHONY: install dev-backend dev-frontend dev build run push deploy destroy clean
+
+# ── Local dev (no Docker) ─────────────────────────────────────────────────
+
+install:
+	uv sync
+	cd frontend && npm install
+
+dev-backend:
+	set -a && source .env && set +a && \
+	  uv run uvicorn server:app --host 0.0.0.0 --port 8080 --reload
+
+dev-frontend:
+	cd frontend && npm run dev
+
+# Run both together. Frontend on :3000, backend on :8080.
+# In another terminal: `make dev-backend`. Then here: `make dev-frontend`.
+dev: dev-frontend
+
+# ── Docker local run ──────────────────────────────────────────────────────
+
+build:
+	export $$(grep -v '^#' .env | xargs) && \
+	docker build \
+	  --build-arg NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY="$$NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY" \
+	  -t counselai:latest .
+
+run:
+	export $$(grep -v '^#' .env | xargs) && \
+	docker run --rm -p 8080:8080 \
+	  -e CLERK_JWKS_URL="$$CLERK_JWKS_URL" \
+	  -e CLERK_FRONTEND_API_URL="$$CLERK_FRONTEND_API_URL" \
+	  -e NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY="$$NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY" \
+	  -e CLERK_SECRET_KEY="$$CLERK_SECRET_KEY" \
+	  -e OPENAI_API_KEY="$$OPENAI_API_KEY" \
+	  -e OPENAI_MODEL="$$OPENAI_MODEL" \
+	  -e DDB_TABLE="$$DDB_TABLE" \
+	  -e DDB_REGION="$$DDB_REGION" \
+	  counselai:latest
+
+# ── AWS deploy / destroy via existing terraform ────────────────────────────
+
+deploy:
+	./scripts/deploy.sh
+
+destroy:
+	./scripts/destroy.sh
+
+# ── Tidy ──────────────────────────────────────────────────────────────────
+
+clean:
+	rm -rf frontend/.next frontend/out frontend/node_modules
+	rm -rf .pytest_cache **/__pycache__ **/.mypy_cache

@@ -1,21 +1,40 @@
-# Single-stage image for App Runner. Pinned amd64 so the image runs identically
-# whether built on a Mac (M-series) or this Linux host.
+# ── Stage 1: Next.js static export ────────────────────────────────────────
+FROM node:22-alpine AS frontend-builder
+
+WORKDIR /app
+
+COPY frontend/package.json frontend/package-lock.json* ./
+RUN npm ci || npm install
+
+COPY frontend/ .
+
+# NEXT_PUBLIC_* values are baked into the client bundle at build time and are
+# safe to bake in (publishable key is designed to be public).
+ARG NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY
+ENV NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=$NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY
+# Empty in prod → frontend hits /api at the same origin as the bundle.
+ARG NEXT_PUBLIC_API_BASE_URL=
+ENV NEXT_PUBLIC_API_BASE_URL=$NEXT_PUBLIC_API_BASE_URL
+
+RUN npm run build
+# Produces ./out — the static HTML/JS export
+
+# ── Stage 2: Python runtime ───────────────────────────────────────────────
 FROM --platform=linux/amd64 python:3.12-slim
 
 WORKDIR /app
 
-# uv is the canonical install path for this project (see CLAUDE.md conventions).
 RUN pip install --no-cache-dir uv
 
-# Install dependencies first so the layer is cached when only app code changes.
 COPY pyproject.toml uv.lock ./
 RUN uv sync --frozen --no-install-project
 
-# Application code. Globs are flat-only so the .dockerignore can keep the image
-# tight (no .venv, no terraform/, no notebook checkpoints).
 COPY server.py ./
 COPY backend ./backend
-COPY ui ./ui
+
+# Drop the Next.js bundle into ./static — server.py mounts /_next from
+# ./static/_next and serves *.html / index.html for client-side routes.
+COPY --from=frontend-builder /app/out ./static
 
 EXPOSE 8080
 

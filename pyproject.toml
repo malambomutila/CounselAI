@@ -6,7 +6,6 @@ dependencies = [
     # Web app
     "fastapi>=0.115",
     "uvicorn[standard]>=0.32",
-    "gradio>=5.47.2,<6.0",
     # LLM
     "openai>=1.109.1",
     # Auth (Clerk JWT verification)

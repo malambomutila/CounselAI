@@ -6,6 +6,7 @@ from backend.adapter import LLMAdapter
 from backend.prompts import JUDGE_SYSTEM, judge_prompt
 
 _EMPTY: Dict = {
+    "final_verdict":             "",
     "stronger_position":         "Unknown",
     "judicial_assessment":       "",
     "plaintiff_vulnerabilities": [],
@@ -46,6 +47,7 @@ class Judge:
         self,
         case: str,
         area: str,
+        country: str,
         plaintiff_arg: str,
         defense_arg: str,
         expert_analysis: Dict,
@@ -54,8 +56,8 @@ class Judge:
     ) -> Dict:
         expert_summary = json.dumps(expert_analysis, ensure_ascii=False, indent=2)
         raw = self.adapter.complete(
-            judge_prompt(case, area, plaintiff_arg, defense_arg, expert_summary,
-                         follow_up=follow_up),
+            judge_prompt(case, area, country, plaintiff_arg, defense_arg,
+                         expert_summary, follow_up=follow_up),
             system=JUDGE_SYSTEM,
             max_tokens=2000,
             json_mode=True,

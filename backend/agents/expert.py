@@ -42,15 +42,17 @@ class ExpertWitness:
         self,
         case: str,
         area: str,
+        country: str,
         plaintiff_arg: str,
         defense_arg: str,
         *,
         follow_up: str = "",
     ) -> Dict:
         raw = self.adapter.complete(
-            expert_prompt(case, area, plaintiff_arg, defense_arg, follow_up=follow_up),
+            expert_prompt(case, area, country, plaintiff_arg, defense_arg,
+                          follow_up=follow_up),
             system=EXPERT_SYSTEM,
-            max_tokens=600,
+            max_tokens=900,
             json_mode=True,
         )
         return _parse_json(raw)

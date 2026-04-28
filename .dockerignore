@@ -34,6 +34,13 @@ docs
 *.md
 !README.md
 
+# Frontend dev artefacts — stage 1 of the Dockerfile copies frontend/ in
+# fresh and runs `npm ci`, so we deliberately exclude these from the build
+# context to keep it small.
+frontend/node_modules
+frontend/.next
+frontend/out
+
 # Runtime artefacts
 .gradio
 local

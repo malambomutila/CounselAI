@@ -40,10 +40,32 @@ NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY = _optional("NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY
 # When CLERK_JWKS_URL is empty, auth is bypassed (local dev / single-user demo).
 AUTH_ENABLED = bool(CLERK_JWKS_URL)
 
+# Origins from which Clerk-signed JWTs are allowed. Clerk issues a session
+# JWT with an ``azp`` claim equal to the origin that requested it; we refuse
+# tokens whose ``azp`` isn't on this list (defence-in-depth — even a valid
+# Clerk JWT minted for someone else's frontend should not authenticate ours).
+# Empty list means "skip the check" — fine for local dev where Clerk dev
+# instances may use a permissive azp.
+CLERK_AUTHORIZED_PARTIES = [
+    p.strip() for p in _optional("CLERK_AUTHORIZED_PARTIES").split(",") if p.strip()
+]
+
+# Persistence has three possible backends, picked in this order:
+#   1. SQLite — set SQLITE_PATH to a writable file path (default for local).
+#   2. DynamoDB — set DDB_TABLE (and don't set SQLITE_PATH).
+#   3. In-memory — both empty, conversations vanish on restart.
+SQLITE_PATH = _optional("SQLITE_PATH", "./data/counselai.sqlite")
 DDB_TABLE = _optional("DDB_TABLE", "counselai-dev")
 DDB_REGION = _optional("DDB_REGION") or _optional("DEFAULT_AWS_REGION", "eu-west-2")
-# When DDB_TABLE is empty, persistence is bypassed (in-memory mode).
-PERSISTENCE_ENABLED = bool(DDB_TABLE)
+
+if SQLITE_PATH:
+    STORE_BACKEND = "sqlite"
+elif DDB_TABLE:
+    STORE_BACKEND = "ddb"
+else:
+    STORE_BACKEND = "memory"
+
+PERSISTENCE_ENABLED = STORE_BACKEND != "memory"
 
 SERVER_HOST = _optional("GRADIO_SERVER_NAME", "0.0.0.0")
 SERVER_PORT = int(_optional("GRADIO_SERVER_PORT", "8080"))

@@ -1,0 +1,42 @@
+# VCS / editor
+.git
+.gitignore
+.idea
+.vscode
+.DS_Store
+
+# Python build / cache
+__pycache__
+*.py[cod]
+*.egg-info
+.pytest_cache
+.mypy_cache
+.ruff_cache
+
+# Local virtualenv — image builds its own via `uv sync`
+.venv
+venv
+
+# Notebook artifacts
+*.ipynb_checkpoints
+counselai.ipynb
+
+# Secrets — App Runner injects env at runtime via TF_VAR_*
+.env
+.env.local
+.env.*.local
+
+# Infra and tooling not needed inside the image
+terraform
+scripts
+tests
+docs
+*.md
+!README.md
+
+# Runtime artefacts
+.gradio
+local
+wandb
+nohup.out
+*.log

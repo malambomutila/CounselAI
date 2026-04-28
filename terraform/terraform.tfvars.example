@@ -1,0 +1,15 @@
+# Non-secret terraform overrides. Copy to terraform.tfvars (gitignored) and edit.
+# Secrets do NOT belong in this file — they come from TF_VAR_* env vars set by
+# scripts/deploy.sh out of the project's .env.
+
+project = "counselai"
+env     = "dev"
+
+aws_region = "eu-west-2"
+log_level  = "INFO"
+
+openai_model = "gpt-4.1"
+
+# Clerk dev instance — these URLs are public, not secrets.
+clerk_jwks_url         = "https://winning-weevil-72.clerk.accounts.dev/.well-known/jwks.json"
+clerk_frontend_api_url = "https://winning-weevil-72.clerk.accounts.dev"

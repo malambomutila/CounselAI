@@ -196,3 +196,17 @@ wandb/
 local/
 CLAUDE.md
 *.ipynb
+
+# Terraform
+**/.terraform/*
+*.tfstate
+*.tfstate.*
+*.tfplan
+crash.log
+crash.*.log
+# Real values live in terraform.tfvars; the .example is the committed template.
+terraform.tfvars
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json

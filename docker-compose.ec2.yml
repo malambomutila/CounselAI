@@ -1,0 +1,126 @@
+services:
+  app:
+    image: ${COUNSELAI_BACKEND_IMAGE:-counselai-backend:latest}
+    build:
+      context: .
+    init: true
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      APP_ENV: production
+      DEBUG: "false"
+      SERVER_HOST: 0.0.0.0
+      SERVER_PORT: 8080
+      FORCE_HTTPS: ${FORCE_HTTPS:-false}
+      SECURE_HEADERS_ENABLED: "true"
+      TRUSTED_HOSTS: ${TRUSTED_HOSTS:-localhost,127.0.0.1}
+      SQLITE_PATH: /var/lib/counselai/data/counselai.sqlite
+      SQLITE_BACKUP_DIR: /var/lib/counselai/data/backups
+      DATA_ROOT: /var/lib/counselai/data
+      RATE_LIMIT_ENABLED: ${RATE_LIMIT_ENABLED:-true}
+      # 172.16.0.0/12 covers the entire Docker default bridge CIDR range so
+      # only Caddy (on the internal Docker network) can set X-Forwarded-For.
+      # The app service uses `expose` not `ports`, so it is unreachable from
+      # outside the Docker network.
+      FORWARDED_ALLOW_IPS: "172.16.0.0/12"
+      WEB_CONCURRENCY: ${WEB_CONCURRENCY:-2}
+      GUNICORN_THREADS: ${GUNICORN_THREADS:-4}
+      GUNICORN_TIMEOUT: ${GUNICORN_TIMEOUT:-300}
+    volumes:
+      - counselai_data:/var/lib/counselai/data
+    expose:
+      - "8080"
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8080/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    logging:
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  frontend:
+    image: ${COUNSELAI_FRONTEND_IMAGE:-counselai-frontend:latest}
+    build:
+      context: ./frontend
+      args:
+        NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: ${NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY}
+        NEXT_PUBLIC_API_BASE_URL: ""
+    init: true
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      NEXT_PUBLIC_API_BASE_URL: ""
+      NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: ${NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY}
+    depends_on:
+      app:
+        condition: service_healthy
+    expose:
+      - "3000"
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3000/"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    logging:
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  caddy:
+    image: caddy:2.9-alpine
+    init: true
+    restart: unless-stopped
+    depends_on:
+      app:
+        condition: service_healthy
+      frontend:
+        condition: service_healthy
+    ports:
+      - "${COUNSELAI_PUBLIC_HTTP_PORT:-8080}:8080"
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./ops/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    environment:
+      COUNSELAI_SITE_ADDRESS: ${COUNSELAI_SITE_ADDRESS:-:8080}
+      ACME_EMAIL: ${ACME_EMAIL}
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8080/"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    logging:
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+volumes:
+  counselai_data:
+  caddy_data:
+  caddy_config:

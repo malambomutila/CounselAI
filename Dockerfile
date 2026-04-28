@@ -1,41 +1,38 @@
-# ── Stage 1: Next.js static export ────────────────────────────────────────
-FROM node:22-alpine AS frontend-builder
-
-WORKDIR /app
-
-COPY frontend/package.json frontend/package-lock.json* ./
-RUN npm ci || npm install
-
-COPY frontend/ .
-
-# NEXT_PUBLIC_* values are baked into the client bundle at build time and are
-# safe to bake in (publishable key is designed to be public).
-ARG NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY
-ENV NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=$NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY
-# Empty in prod → frontend hits /api at the same origin as the bundle.
-ARG NEXT_PUBLIC_API_BASE_URL=
-ENV NEXT_PUBLIC_API_BASE_URL=$NEXT_PUBLIC_API_BASE_URL
-
-RUN npm run build
-# Produces ./out — the static HTML/JS export
-
-# ── Stage 2: Python runtime ───────────────────────────────────────────────
 FROM --platform=linux/amd64 python:3.12-slim
 
 WORKDIR /app
 
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends ca-certificates curl \
+ && rm -rf /var/lib/apt/lists/*
+
 RUN pip install --no-cache-dir uv
+
+RUN addgroup --system counselai && adduser --system --ingroup counselai counselai
 
 COPY pyproject.toml uv.lock ./
 RUN uv sync --frozen --no-install-project
 
 COPY server.py ./
 COPY backend ./backend
+COPY scripts/start-prod.sh ./scripts/start-prod.sh
 
-# Drop the Next.js bundle into ./static — server.py mounts /_next from
-# ./static/_next and serves *.html / index.html for client-side routes.
-COPY --from=frontend-builder /app/out ./static
+RUN chmod +x ./scripts/start-prod.sh \
+ && mkdir -p /var/lib/counselai/data /var/log/counselai \
+ && chown -R counselai:counselai /app /var/lib/counselai /var/log/counselai
+
+ENV APP_ENV=production
+ENV SERVER_HOST=0.0.0.0
+ENV SERVER_PORT=8080
+ENV SQLITE_PATH=/var/lib/counselai/data/counselai.sqlite
+ENV DATA_ROOT=/var/lib/counselai/data
+ENV FORCE_HTTPS=false
+ENV PYTHONUNBUFFERED=1
+
+USER counselai
+
+VOLUME ["/var/lib/counselai/data"]
 
 EXPOSE 8080
 
-CMD ["uv", "run", "uvicorn", "server:app", "--host", "0.0.0.0", "--port", "8080"]
+CMD ["./scripts/start-prod.sh"]

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { COUNTRIES, DEFAULT_COUNTRY, LEGAL_AREAS } from "@/lib/constants";
 
 interface InputCardProps {
@@ -28,6 +28,20 @@ export function InputCard({ busy, initial, onAnalyse }: InputCardProps) {
   const [countryOther, setCountryOther] = useState<string>(
     isKnown ? "" : initialCountry
   );
+
+  useEffect(() => {
+    const nextCase = initial?.case ?? "";
+    const nextArea = initial?.area ?? LEGAL_AREAS[0];
+    const nextPosition = initial?.position ?? "";
+    const nextCountry = initial?.country ?? DEFAULT_COUNTRY;
+    const nextKnown = (COUNTRIES as readonly string[]).includes(nextCountry);
+
+    setCase(nextCase);
+    setArea(nextArea);
+    setPosition(nextPosition);
+    setCountryDropdown(nextKnown ? nextCountry : "Other");
+    setCountryOther(nextKnown ? "" : nextCountry);
+  }, [initial]);
 
   const country =
     countryDropdown === "Other" ? countryOther.trim() : countryDropdown;
@@ -115,7 +129,7 @@ export function InputCard({ busy, initial, onAnalyse }: InputCardProps) {
       </div>
 
       <p className="text-[11px] text-ink-subtle mt-3 italic">
-        Agents will cite real precedents from the chosen jurisdiction's
+        Agents will cite real precedents from the chosen jurisdiction&apos;s
         case law, with links where available.
       </p>
 

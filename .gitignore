@@ -62,6 +62,9 @@ cover/
 local_settings.py
 db.sqlite3
 db.sqlite3-journal
+data/*.sqlite
+data/backups/
+*.pem
 
 # Flask stuff:
 instance/
@@ -195,6 +198,7 @@ wandb/
 
 local/
 *.ipynb
+CLAUDE.md
 
 # Terraform
 **/.terraform/*

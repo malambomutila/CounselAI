@@ -1,11 +1,13 @@
 import Head from "next/head";
 import Link from "next/link";
+import dynamic from "next/dynamic";
 import { useEffect } from "react";
 import { useRouter } from "next/router";
+import type { GetServerSideProps } from "next";
 import { SignInButton, SignedIn, SignedOut, useAuth } from "@clerk/nextjs";
 
 // Landing / sign-in page. Authed users get bounced to /app immediately.
-export default function Landing() {
+function Landing() {
   const router = useRouter();
   const { isSignedIn, isLoaded } = useAuth();
 
@@ -18,12 +20,12 @@ export default function Landing() {
   return (
     <>
       <Head>
-        <title>CounselAI</title>
+        <title>MoootCourt</title>
       </Head>
       <main className="min-h-screen flex flex-col items-center justify-center bg-canvas px-6 py-16">
         <div className="max-w-2xl text-center">
           <h1 className="font-display font-semibold text-[56px] leading-none tracking-[-0.025em] mb-6">
-            CounselAI
+            MoootCourt
           </h1>
           <p className="text-ink-muted text-lg leading-relaxed mb-10 max-w-xl mx-auto">
             Five AI legal specialists analyse your case from every angle so you
@@ -53,3 +55,9 @@ export default function Landing() {
     </>
   );
 }
+
+export default dynamic(() => Promise.resolve(Landing), { ssr: false });
+
+export const getServerSideProps: GetServerSideProps = async () => ({
+  props: {},
+});

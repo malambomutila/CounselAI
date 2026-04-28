@@ -1,0 +1,61 @@
+- generic [ref=e1]:
+  - main [ref=e3]:
+    - generic [ref=e4]:
+      - heading "CounselAI" [level=1] [ref=e5]
+      - paragraph [ref=e6]: Five AI legal specialists analyse your case from every angle so you walk into proceedings fully prepared. Sign in to begin.
+      - button "Sign in to continue" [ref=e18] [cursor=pointer]
+      - paragraph [ref=e7]: For legal research only. Not legal advice and not a substitute for a licensed practitioner.
+  - button "Open Next.js Dev Tools" [ref=e13] [cursor=pointer]:
+    - img [ref=e14]
+  - alert [ref=e17]
+  - dialog [active] [ref=e21]:
+    - generic [ref=e23]:
+      - generic [ref=e24]:
+        - button "Close modal" [ref=e25] [cursor=pointer]:
+          - img [ref=e26]
+        - generic [ref=e29]:
+          - heading "Sign in to CounselAI" [level=1] [ref=e30]
+          - paragraph [ref=e31]: Welcome back! Please sign in to continue
+        - generic [ref=e32]:
+          - generic [ref=e34]:
+            - button "Sign in with Apple Apple" [ref=e35] [cursor=pointer]:
+              - generic [ref=e36]:
+                - img "Sign in with Apple" [ref=e38]
+                - generic [ref=e39]: Apple
+            - button "Sign in with Google Google" [ref=e40] [cursor=pointer]:
+              - generic [ref=e41]:
+                - img "Sign in with Google" [ref=e43]
+                - generic [ref=e44]: Google
+          - paragraph [ref=e47]: or
+          - generic [ref=e49]:
+            - generic [ref=e50]:
+              - generic [ref=e53]:
+                - generic [ref=e55]: Email address
+                - textbox "Email address" [ref=e56]:
+                  - /placeholder: Enter your email address
+              - generic:
+                - generic:
+                  - generic:
+                    - generic:
+                      - generic: Password
+                    - generic:
+                      - textbox "Password":
+                        - /placeholder: Enter your password
+                      - button "Show password":
+                        - img
+            - button "Continue" [ref=e59] [cursor=pointer]:
+              - generic [ref=e60]:
+                - text: Continue
+                - img [ref=e61]
+      - generic [ref=e63]:
+        - generic [ref=e64]:
+          - generic [ref=e65]: Don’t have an account?
+          - link "Sign up" [ref=e66] [cursor=pointer]:
+            - /url: http://localhost:3000/CLERK-ROUTER/VIRTUAL/sign-up
+        - generic [ref=e68]:
+          - generic [ref=e70]:
+            - paragraph [ref=e71]: Secured by
+            - link "Clerk logo" [ref=e72] [cursor=pointer]:
+              - /url: https://go.clerk.com/components
+              - img [ref=e73]
+          - paragraph [ref=e78]: Development mode

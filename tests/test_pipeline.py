@@ -1,4 +1,4 @@
-"""Smoke test for the 5-agent pipeline.
+"""Smoke test for the current 5-agent pipeline.
 
 Mocks the OpenAI client so the test doesn't hit the network or spend tokens.
 Verifies:
@@ -110,7 +110,7 @@ def test_run_initial_runs_only_three_agents():
 
     yields, final = _drain(run_initial(
         "contract dispute over $50k delivery", "Contract Law",
-        "I am the plaintiff seeking damages",
+        "I am the plaintiff seeking damages", "United Kingdom",
     ))
 
     # 4 yields: 3 progressive (one per agent starting) + 1 final summary
@@ -133,7 +133,7 @@ def test_run_final_judgment_completes_the_package():
     """Phase 2: Judge + Strategist run using prev_turn's P/D/E outputs."""
     from backend.pipeline import run_initial, run_final_judgment
 
-    _, prev_turn = _drain(run_initial("breach", "Contract Law", "plaintiff"))
+    _, prev_turn = _drain(run_initial("breach", "Contract Law", "plaintiff", "United Kingdom"))
     yields, final = _drain(run_final_judgment(prev_turn))
 
     # 3 yields: judge starting, strategist starting, final
@@ -163,7 +163,7 @@ def test_followup_before_judgment_does_not_invoke_judge_or_strategist():
         run_initial, run_followup, JUDGE_PLACEHOLDER, STRATEGY_PLACEHOLDER,
     )
 
-    _, prev_turn = _drain(run_initial("breach", "Contract Law", "plaintiff"))
+    _, prev_turn = _drain(run_initial("breach", "Contract Law", "plaintiff", "United Kingdom"))
     yields, new_turn = _drain(run_followup(prev_turn, "plaintiff",
                                            "consider the new email evidence"))
 
@@ -181,7 +181,7 @@ def test_followup_judge_blocked_before_final_judgment():
     """Trying to refine the judge before phase 2 should raise."""
     from backend.pipeline import run_initial, run_followup
 
-    _, prev_turn = _drain(run_initial("breach", "Contract Law", "plaintiff"))
+    _, prev_turn = _drain(run_initial("breach", "Contract Law", "plaintiff", "United Kingdom"))
     gen = run_followup(prev_turn, "judge", "be tougher on the defense")
     with pytest.raises(ValueError, match="before final judgment"):
         next(gen)
@@ -190,7 +190,7 @@ def test_followup_judge_blocked_before_final_judgment():
 def test_followup_after_judgment_cascades_through_judge_and_strategist():
     from backend.pipeline import run_initial, run_final_judgment, run_followup
 
-    _, t1 = _drain(run_initial("breach", "Contract Law", "plaintiff"))
+    _, t1 = _drain(run_initial("breach", "Contract Law", "plaintiff", "United Kingdom"))
     _, t2 = _drain(run_final_judgment(t1))
     yields, t3 = _drain(run_followup(t2, "plaintiff", "new email evidence"))
 

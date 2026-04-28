@@ -21,27 +21,54 @@ from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.gzip import GZipMiddleware
+from fastapi.middleware.httpsredirect import HTTPSRedirectMiddleware
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.middleware.trustedhost import TrustedHostMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from backend.api import router as api_router
 from backend.settings import (
+    APP_ENV,
+    CONTENT_SECURITY_POLICY,
     AUTH_ENABLED,
+    FORCE_HTTPS,
+    LOG_LEVEL,
     OPENAI_MODEL,
     PERSISTENCE_ENABLED,
+    SECURE_HEADERS_ENABLED,
     SERVER_HOST,
     SERVER_PORT,
     STORE_BACKEND,
+    TRUSTED_HOSTS,
 )
+from backend.usage import reset_active_requests
 
 logging.basicConfig(
-    level=os.getenv("LOG_LEVEL", "INFO"),
+    level=LOG_LEVEL,
     format="%(asctime)s %(levelname)s %(name)s: %(message)s",
 )
 logger = logging.getLogger(__name__)
 
 
-app = FastAPI(title="CounselAI", docs_url=None, redoc_url=None)
+app = FastAPI(title="MoootCourt", docs_url=None, redoc_url=None)
+
+
+class SecurityHeadersMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request, call_next):
+        response = await call_next(request)
+        response.headers.setdefault("X-Content-Type-Options", "nosniff")
+        response.headers.setdefault("X-Frame-Options", "DENY")
+        response.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
+        response.headers.setdefault(
+            "Permissions-Policy",
+            "camera=(), geolocation=(), microphone=()",
+        )
+        response.headers.setdefault("Cross-Origin-Opener-Policy", "same-origin")
+        response.headers.setdefault("Cross-Origin-Resource-Policy", "same-origin")
+        response.headers.setdefault("Content-Security-Policy", CONTENT_SECURITY_POLICY)
+        return response
 
 # CORS — Next.js dev server (3000) hits FastAPI on a different port. In prod
 # both are served from the same origin so the wildcard is harmless. Bearer
@@ -58,12 +85,27 @@ app.add_middleware(
     allow_methods=["GET", "POST", "OPTIONS"],
     allow_headers=["Authorization", "Content-Type"],
 )
+app.add_middleware(GZipMiddleware, minimum_size=1024)
+
+if TRUSTED_HOSTS and TRUSTED_HOSTS != ["*"]:
+    app.add_middleware(TrustedHostMiddleware, allowed_hosts=TRUSTED_HOSTS)
+
+if FORCE_HTTPS:
+    app.add_middleware(HTTPSRedirectMiddleware)
+
+if SECURE_HEADERS_ENABLED:
+    app.add_middleware(SecurityHeadersMiddleware)
 
 app.include_router(api_router)
+reset_active_requests()
 
 
 @app.get("/health")
 async def health():
+    # Expose system detail only in non-production; load-balancer probes only
+    # need the 200 status — revealing internals aids attackers in production.
+    if APP_ENV == "production":
+        return JSONResponse({"ok": True})
     return JSONResponse({
         "ok": True,
         "auth_enabled": AUTH_ENABLED,
@@ -87,6 +129,15 @@ if _STATIC_ROOT.exists():
         name="next-assets",
     )
 
+    _STATIC_ROOT_RESOLVED = _STATIC_ROOT.resolve()
+
+    def _safe_static_file(path: Path) -> bool:
+        """Return True only if path resolves to a file inside _STATIC_ROOT."""
+        try:
+            return path.resolve().is_file() and path.resolve().is_relative_to(_STATIC_ROOT_RESOLVED)
+        except (ValueError, OSError):
+            return False
+
     @app.get("/{full_path:path}")
     async def serve_static(full_path: str):
         """Serve the Next.js static export. Tries:
@@ -96,10 +147,10 @@ if _STATIC_ROOT.exists():
              on a hard refresh of /app etc.
         """
         candidate = _STATIC_ROOT / full_path
-        if candidate.is_file():
+        if _safe_static_file(candidate):
             return FileResponse(candidate)
         html_candidate = _STATIC_ROOT / f"{full_path}.html"
-        if html_candidate.is_file():
+        if _safe_static_file(html_candidate):
             return FileResponse(html_candidate)
         index = _STATIC_ROOT / "index.html"
         if index.is_file():
@@ -111,7 +162,7 @@ else:
 
 if __name__ == "__main__":
     import uvicorn
-    logger.info("Starting CounselAI on %s:%s (auth=%s, persistence=%s, store=%s)",
+    logger.info("Starting MoootCourt on %s:%s (auth=%s, persistence=%s, store=%s)",
                 SERVER_HOST, SERVER_PORT, AUTH_ENABLED, PERSISTENCE_ENABLED,
                 STORE_BACKEND)
     uvicorn.run(app, host=SERVER_HOST, port=SERVER_PORT)

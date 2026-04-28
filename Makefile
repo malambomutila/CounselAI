@@ -1,4 +1,4 @@
-.PHONY: install dev-backend dev-frontend dev build run push deploy destroy clean
+.PHONY: install dev-backend dev-frontend dev build run prod-up prod-down prod-logs backup-sqlite deploy destroy clean
 
 # ── Local dev (no Docker) ─────────────────────────────────────────────────
 
@@ -37,6 +37,19 @@ run:
 	  -e DDB_TABLE="$$DDB_TABLE" \
 	  -e DDB_REGION="$$DDB_REGION" \
 	  counselai:latest
+
+prod-up:
+	docker compose -f docker-compose.ec2.yml up -d --build
+
+prod-down:
+	docker compose -f docker-compose.ec2.yml down
+
+prod-logs:
+	docker compose -f docker-compose.ec2.yml logs -f
+
+backup-sqlite:
+	mkdir -p data/backups
+	test -f data/counselai.sqlite && cp data/counselai.sqlite data/backups/counselai-$$(date +%Y%m%d%H%M%S).sqlite
 
 # ── AWS deploy / destroy via existing terraform ────────────────────────────
 

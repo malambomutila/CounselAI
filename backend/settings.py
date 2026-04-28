@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import os
 from dataclasses import dataclass
+from pathlib import Path
 
 from dotenv import load_dotenv
 
@@ -20,6 +21,19 @@ def _required(name: str) -> str:
 
 def _optional(name: str, default: str = "") -> str:
     return os.getenv(name, default).strip()
+
+
+def _optional_int(name: str, default: int) -> int:
+    raw = _optional(name, str(default))
+    try:
+        return int(raw)
+    except ValueError as exc:
+        raise RuntimeError(f"Invalid integer env var {name}={raw!r}") from exc
+
+
+def _optional_bool(name: str, default: bool = False) -> bool:
+    raw = _optional(name, "true" if default else "false").lower()
+    return raw in {"1", "true", "yes", "on"}
 
 
 @dataclass(frozen=True)
@@ -59,6 +73,10 @@ DDB_TABLE = _optional("DDB_TABLE", "counselai-dev")
 DDB_REGION = _optional("DDB_REGION") or _optional("DEFAULT_AWS_REGION", "eu-west-2")
 
 if SQLITE_PATH:
+    sqlite_parent = Path(SQLITE_PATH).expanduser().resolve().parent
+    sqlite_parent.mkdir(parents=True, exist_ok=True)
+
+if SQLITE_PATH:
     STORE_BACKEND = "sqlite"
 elif DDB_TABLE:
     STORE_BACKEND = "ddb"
@@ -67,8 +85,48 @@ else:
 
 PERSISTENCE_ENABLED = STORE_BACKEND != "memory"
 
-SERVER_HOST = _optional("GRADIO_SERVER_NAME", "0.0.0.0")
-SERVER_PORT = int(_optional("GRADIO_SERVER_PORT", "8080"))
+SERVER_HOST = _optional("SERVER_HOST", _optional("GRADIO_SERVER_NAME", "0.0.0.0"))
+SERVER_PORT = _optional_int("SERVER_PORT", _optional_int("GRADIO_SERVER_PORT", 8080))
+
+APP_ENV = _optional("APP_ENV", "development")
+DEBUG = _optional_bool("DEBUG", False)
+LOG_LEVEL = _optional("LOG_LEVEL", "INFO")
+
+TRUSTED_HOSTS = [
+    h.strip() for h in _optional("TRUSTED_HOSTS", "*").split(",") if h.strip()
+]
+FORCE_HTTPS = _optional_bool("FORCE_HTTPS", False)
+SECURE_HEADERS_ENABLED = _optional_bool("SECURE_HEADERS_ENABLED", True)
+FORWARDED_ALLOW_IPS = _optional("FORWARDED_ALLOW_IPS", "127.0.0.1")
+
+CASE_DESCRIPTION_MAX_CHARS = _optional_int("CASE_DESCRIPTION_MAX_CHARS", 12000)
+USER_POSITION_MAX_CHARS = _optional_int("USER_POSITION_MAX_CHARS", 500)
+FOLLOW_UP_MAX_CHARS = _optional_int("FOLLOW_UP_MAX_CHARS", 2000)
+
+RATE_LIMIT_ENABLED = _optional_bool("RATE_LIMIT_ENABLED", True)
+RATE_LIMIT_MAX_REQUESTS_PER_HOUR = _optional_int("RATE_LIMIT_MAX_REQUESTS_PER_HOUR", 12)
+RATE_LIMIT_MAX_REQUESTS_PER_DAY = _optional_int("RATE_LIMIT_MAX_REQUESTS_PER_DAY", 40)
+RATE_LIMIT_MAX_CONCURRENT_REQUESTS = _optional_int("RATE_LIMIT_MAX_CONCURRENT_REQUESTS", 1)
+RATE_LIMIT_COOLDOWN_MINUTES = _optional_int("RATE_LIMIT_COOLDOWN_MINUTES", 30)
+
+SQLITE_BACKUP_DIR = _optional("SQLITE_BACKUP_DIR", "")
+DATA_ROOT = _optional("DATA_ROOT", str(Path(SQLITE_PATH).expanduser().resolve().parent if SQLITE_PATH else "./data"))
+
+CONTENT_SECURITY_POLICY = _optional(
+    "CONTENT_SECURITY_POLICY",
+    (
+        "default-src 'self'; "
+        "script-src 'self' 'unsafe-inline' https://*.clerk.accounts.dev; "
+        "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
+        "font-src 'self' https://fonts.gstatic.com data:; "
+        "img-src 'self' data: https:; "
+        "connect-src 'self' https://*.clerk.accounts.dev; "
+        "object-src 'none'; "
+        "base-uri 'self'; "
+        "frame-ancestors 'none'; "
+        "form-action 'self'"
+    ),
+)
 
 
 def agent_configs() -> dict[str, AgentConfig]:

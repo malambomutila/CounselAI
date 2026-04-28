@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Tear down the CounselAI showcase. Safe to re-run; idempotent.
+# Tear down the MoootCourt showcase. Safe to re-run; idempotent.
 #
 # 1. Drain ECR (terraform destroy can't remove a repo with images unless
 #    force_delete is set — we have it set, but emptying first makes the
@@ -53,7 +53,7 @@ AWS_REGION="${AWS_REGION:-eu-west-2}"
 
 # Confirmation gate — destruction is irreversible.
 if [[ "${1:-}" != "--yes" ]]; then
-  echo "About to destroy CounselAI infra in region $AWS_REGION:"
+  echo "About to destroy MoootCourt infra in region $AWS_REGION:"
   echo "  - App Runner service"
   echo "  - DynamoDB table (data will be lost)"
   echo "  - ECR repository + all images"

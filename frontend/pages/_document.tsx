@@ -9,8 +9,8 @@ export default function Document() {
     <Html lang="en">
       <Head>
         <meta name="description" content="Five AI legal specialists analyse your case from every angle." />
-        <meta name="application-name" content="CounselAI" />
-        <meta name="apple-mobile-web-app-title" content="CounselAI" />
+        <meta name="application-name" content="MoootCourt" />
+        <meta name="apple-mobile-web-app-title" content="MoootCourt" />
         <meta name="theme-color" content="#0F52FF" />
         <link rel="icon" type="image/x-icon" href="/favicon.ico" />
         <link rel="shortcut icon" href="/favicon.ico" />

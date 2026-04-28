@@ -1,0 +1,23 @@
+{
+	email {$ACME_EMAIL}
+}
+
+{$COUNSELAI_SITE_ADDRESS::8080} {
+	encode zstd gzip
+
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+	}
+
+	@backend path /api/* /health
+	handle @backend {
+		reverse_proxy app:8080 {
+			# SSE requires immediate flushing — -1 disables buffering entirely.
+			flush_interval -1
+		}
+	}
+
+	handle {
+		reverse_proxy frontend:3000
+	}
+}

@@ -1,18 +1,14 @@
 #!/usr/bin/env bash
-# Build → push → terraform apply for CounselAI.
+# Build → push → terraform apply for MoootCourt's EC2-oriented deployment flow.
 #
 # Reads .env at repo root, exports the secrets we care about as TF_VAR_*, then:
-#   1. terraform init + targeted apply for ECR (so the repo URL exists),
-#   2. docker build (linux/amd64) + ECR login + push,
-#   3. full terraform apply (creates / updates DynamoDB + App Runner),
-#   4. (optional) start a fresh App Runner deployment to pick up the new :latest,
-#   5. echo the service URL.
+#   1. terraform init + targeted apply for the backend/frontend ECR repos,
+#   2. docker build + push for backend and frontend images,
+#   3. full terraform apply (ECR + IAM + optional EC2 / optional DynamoDB),
+#   4. echo the image URIs and EC2 outputs for docker-compose deployment.
 
 set -euo pipefail
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Locate repo root regardless of where the script is invoked from.
-# ─────────────────────────────────────────────────────────────────────────────
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &> /dev/null && pwd)"
 REPO_ROOT="$(cd -- "$SCRIPT_DIR/.." &> /dev/null && pwd)"
 TF_DIR="$REPO_ROOT/terraform"
@@ -20,9 +16,6 @@ ENV_FILE="$REPO_ROOT/.env"
 
 cd "$REPO_ROOT"
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Sanity checks
-# ─────────────────────────────────────────────────────────────────────────────
 require() {
   command -v "$1" >/dev/null 2>&1 || {
     echo "✗ $1 is required but not on PATH" >&2
@@ -39,15 +32,8 @@ if [[ ! -f "$ENV_FILE" ]]; then
   exit 1
 fi
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Parse .env and re-export the entries we care about as TF_VAR_*.
-# Only the secrets-and-tweakable-config keys are mapped; anything else in .env
-# is ignored.
-# ─────────────────────────────────────────────────────────────────────────────
 read_env() {
   local key="$1"
-  # Match "KEY=value" with optional spaces around =, ignoring comments and
-  # blanks. Strip surrounding quotes if present. Stops at first match.
   awk -v k="$key" '
     /^[[:space:]]*#/ { next }
     /^[[:space:]]*$/ { next }
@@ -95,67 +81,58 @@ export TF_VAR_clerk_publishable_key="$CLERK_PUBLISHABLE_KEY"
 export TF_VAR_clerk_secret_key="$CLERK_SECRET_KEY"
 export TF_VAR_aws_region="$AWS_REGION"
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Step 1 — terraform init + targeted ECR apply.
-# We need the ECR repo to exist before we can docker push.
-# ─────────────────────────────────────────────────────────────────────────────
 echo "▸ terraform init"
 terraform -chdir="$TF_DIR" init -upgrade -input=false
 
 echo "▸ terraform apply (ECR only)"
 terraform -chdir="$TF_DIR" apply -input=false -auto-approve \
-  -target=aws_ecr_repository.this
+  -target=aws_ecr_repository.backend \
+  -target=aws_ecr_repository.frontend
 
-ECR_URL="$(terraform -chdir="$TF_DIR" output -raw ecr_repository_url)"
-echo "  ECR: $ECR_URL"
+BACKEND_ECR_URL="$(terraform -chdir="$TF_DIR" output -raw backend_ecr_repository_url)"
+FRONTEND_ECR_URL="$(terraform -chdir="$TF_DIR" output -raw frontend_ecr_repository_url)"
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Step 2 — docker build + push.
-# Forced linux/amd64 so the image runs on App Runner regardless of the build
-# host architecture.
-# ─────────────────────────────────────────────────────────────────────────────
+echo "  Backend ECR:  $BACKEND_ECR_URL"
+echo "  Frontend ECR: $FRONTEND_ECR_URL"
+
 echo "▸ docker login → ECR"
 aws ecr get-login-password --region "$AWS_REGION" \
   | docker login --username AWS --password-stdin \
       "${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
 
-echo "▸ docker build"
-docker build --platform linux/amd64 -t "$ECR_URL:latest" "$REPO_ROOT"
+echo "▸ docker build (backend)"
+docker build --platform linux/amd64 -t "$BACKEND_ECR_URL:latest" "$REPO_ROOT"
 
-echo "▸ docker push"
-docker push "$ECR_URL:latest"
+echo "▸ docker push (backend)"
+docker push "$BACKEND_ECR_URL:latest"
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Step 3 — full terraform apply (DynamoDB + IAM + App Runner).
-# ─────────────────────────────────────────────────────────────────────────────
+echo "▸ docker build (frontend)"
+docker build --platform linux/amd64 \
+  --build-arg NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY="$CLERK_PUBLISHABLE_KEY" \
+  -t "$FRONTEND_ECR_URL:latest" "$REPO_ROOT/frontend"
+
+echo "▸ docker push (frontend)"
+docker push "$FRONTEND_ECR_URL:latest"
+
 echo "▸ terraform apply (full)"
 terraform -chdir="$TF_DIR" apply -input=false -auto-approve
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Step 4 — kick a fresh deployment if the service already existed (so it
-# pulls the image we just pushed instead of caching the previous :latest).
-# auto_deployments_enabled is false by design, so we trigger by hand.
-# ─────────────────────────────────────────────────────────────────────────────
-SERVICE_ARN="$(terraform -chdir="$TF_DIR" output -raw app_runner_service_arn 2>/dev/null || true)"
-if [[ -n "$SERVICE_ARN" ]]; then
-  echo "▸ apprunner start-deployment"
-  aws apprunner start-deployment \
-    --service-arn "$SERVICE_ARN" \
-    --region "$AWS_REGION" \
-    >/dev/null || echo "  (start-deployment skipped — service may still be creating)"
-fi
-
-# ─────────────────────────────────────────────────────────────────────────────
-# Step 5 — echo URLs.
-# ─────────────────────────────────────────────────────────────────────────────
-APP_URL="$(terraform -chdir="$TF_DIR" output -raw app_runner_service_url)"
-DDB_TABLE="$(terraform -chdir="$TF_DIR" output -raw dynamodb_table_name)"
+EC2_PUBLIC_IP="$(terraform -chdir="$TF_DIR" output -raw ec2_public_ip 2>/dev/null || true)"
+EC2_PUBLIC_DNS="$(terraform -chdir="$TF_DIR" output -raw ec2_public_dns 2>/dev/null || true)"
+INSTANCE_PROFILE="$(terraform -chdir="$TF_DIR" output -raw ec2_instance_profile_name)"
+SECURITY_GROUP_ID="$(terraform -chdir="$TF_DIR" output -raw ec2_security_group_id 2>/dev/null || true)"
+DDB_TABLE="$(terraform -chdir="$TF_DIR" output -raw dynamodb_table_name 2>/dev/null || true)"
 
 echo
-echo "✓ Deploy complete."
-echo "  App URL:        $APP_URL"
-echo "  DynamoDB table: $DDB_TABLE"
-echo "  ECR:            $ECR_URL"
+echo "✓ Deploy preparation complete."
+echo "  Backend image:         $BACKEND_ECR_URL:latest"
+echo "  Frontend image:        $FRONTEND_ECR_URL:latest"
+echo "  Instance profile:      $INSTANCE_PROFILE"
+echo "  Security group id:     ${SECURITY_GROUP_ID:-<not-created>}"
+echo "  DynamoDB table:        ${DDB_TABLE:-<disabled>}"
+echo "  EC2 public ip:         ${EC2_PUBLIC_IP:-<not-created>}"
+echo "  EC2 public dns:        ${EC2_PUBLIC_DNS:-<not-created>}"
 echo
-echo "  Tail logs with:"
-echo "    aws logs tail /aws/apprunner/${DDB_TABLE}/<id>/application --follow --region $AWS_REGION"
+echo "  For the EC2 host, set:"
+echo "    COUNSELAI_BACKEND_IMAGE=$BACKEND_ECR_URL:latest"
+echo "    COUNSELAI_FRONTEND_IMAGE=$FRONTEND_ECR_URL:latest"

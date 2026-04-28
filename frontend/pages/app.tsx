@@ -1,4 +1,6 @@
 import Head from "next/head";
+import dynamic from "next/dynamic";
+import type { GetServerSideProps } from "next";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/router";
 import { useAuth, useUser } from "@clerk/nextjs";
@@ -8,6 +10,7 @@ import { InputCard } from "@/components/InputCard";
 import { AgentPanel, type AgentKey } from "@/components/AgentPanel";
 import { MemoCard } from "@/components/MemoCard";
 import { ScoresCard } from "@/components/ScoresCard";
+import { UserMenu } from "@/components/UserMenu";
 import {
   api,
   stream,
@@ -28,7 +31,7 @@ type CaseHeader = { case: string; area: string; position: string; country: strin
 // user A's last open conversation. Scoped by sub; the sub itself is opaque.
 const lastConvKey = (userId: string) => `counselai:lastConv:${userId}`;
 
-export default function CounselAIApp() {
+function MoootCourtApp() {
   const router = useRouter();
   const { getToken, isLoaded, isSignedIn } = useAuth();
   const { user } = useUser();
@@ -260,9 +263,9 @@ export default function CounselAIApp() {
   return (
     <>
       <Head>
-        <title>CounselAI</title>
+        <title>MoootCourt</title>
       </Head>
-      <div className="flex min-h-screen">
+      <div className="app-shell">
         <Sidebar
           history={history}
           activeId={activeId}
@@ -271,99 +274,101 @@ export default function CounselAIApp() {
           onNewCase={newCase}
         />
 
-        <main className="flex-1 px-10 py-10 max-w-[1400px]">
-          <header className="hero mb-9">
-            <h1>Legal Counsel Agents</h1>
-            <p>
-              Five AI legal specialists analyse your case from every angle so
-              you walk into proceedings fully prepared. Plaintiff, Defense,
-              and Expert run first; pronounce final judgment to bring in the
-              Judge and Strategist.
-            </p>
-          </header>
-
-          <InputCard
-            busy={busy}
-            initial={caseHeader}
-            onAnalyse={({ case: c, area, position, country }) =>
-              startInitial({ case: c, area, position, country })
-            }
-          />
-
-          {error && (
-            <div className="mb-6 px-4 py-3 border border-rose-500 bg-rose-500/5 text-rose-600 rounded-sm text-sm">
-              {error}
+        <main className="app-main">
+          <div className="app-canvas">
+            <div className="flex justify-end mb-6">
+              <UserMenu />
             </div>
-          )}
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <AgentPanel
-              agent="plaintiff"
-              title="Plaintiff's Counsel"
-              body={state.plaintiff}
-              placeholder="Argument will appear here after analysis."
+            <InputCard
               busy={busy}
-              onRefine={(t) => refine("plaintiff", t)}
+              initial={caseHeader}
+              onAnalyse={({ case: c, area, position, country }) =>
+                startInitial({ case: c, area, position, country })
+              }
             />
-            <AgentPanel
-              agent="defense"
-              title="Defense Counsel"
-              body={state.defense}
-              placeholder="Counter-argument will appear here after analysis."
+
+            {error && (
+              <div className="mb-6 px-4 py-3 border border-rose-500 bg-rose-500/5 text-rose-600 rounded-sm text-sm">
+                {error}
+              </div>
+            )}
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <AgentPanel
+                agent="plaintiff"
+                title="Plaintiff's Counsel"
+                body={state.plaintiff}
+                placeholder="Argument will appear here after analysis."
+                busy={busy}
+                onRefine={(t) => refine("plaintiff", t)}
+              />
+              <AgentPanel
+                agent="defense"
+                title="Defense Counsel"
+                body={state.defense}
+                placeholder="Counter-argument will appear here after analysis."
+                busy={busy}
+                onRefine={(t) => refine("defense", t)}
+              />
+              <AgentPanel
+                agent="expert"
+                title="Expert Witness"
+                body={state.expert}
+                placeholder="Expert technical analysis will appear here."
+                busy={busy}
+                onRefine={(t) => refine("expert", t)}
+              />
+              <AgentPanel
+                agent="judge"
+                title="Judge's Assessment"
+                body={state.judge}
+                placeholder={JUDGE_PLACEHOLDER}
+                refinable={judgmentRendered}
+                busy={busy}
+                onRefine={(t) => refine("judge", t)}
+              />
+            </div>
+
+            <div className="flex justify-center my-10">
+              <button
+                type="button"
+                className="final-judgment-btn"
+                onClick={pronounceJudgment}
+                disabled={busy || !activeId}
+              >
+                {judgmentRendered ? "Re-run Final Judgment" : "Pronounce Final Judgment"}
+              </button>
+            </div>
+
+            <MemoCard
+              body={state.strategy || STRATEGY_PLACEHOLDER}
               busy={busy}
-              onRefine={(t) => refine("defense", t)}
-            />
-            <AgentPanel
-              agent="expert"
-              title="Expert Witness"
-              body={state.expert}
-              placeholder="Expert technical analysis will appear here."
-              busy={busy}
-              onRefine={(t) => refine("expert", t)}
-            />
-            <AgentPanel
-              agent="judge"
-              title="Judge's Assessment"
-              body={state.judge}
-              placeholder={JUDGE_PLACEHOLDER}
               refinable={judgmentRendered}
-              busy={busy}
-              onRefine={(t) => refine("judge", t)}
+              onRefine={(t) => refine("strategist", t)}
             />
+
+            <ScoresCard rows={state.scores} />
+
+            <p className="disclaimer">
+              This tool provides AI-generated legal simulations and is not a
+              substitute for professional legal advice. The scores and
+              assessments are based on the input provided. Always consult with a
+              licensed attorney for final legal decisions.
+            </p>
+
+            <p className="text-center text-xs text-slate-400 font-mono tracking-[0.05em] mt-6 mb-6">
+              2026 · Malambo Mutila
+            </p>
           </div>
-
-          <div className="flex justify-center my-10">
-            <button
-              type="button"
-              className="final-judgment-btn"
-              onClick={pronounceJudgment}
-              disabled={busy || !activeId}
-            >
-              {judgmentRendered ? "Re-run Final Judgment" : "Pronounce Final Judgment"}
-            </button>
-          </div>
-
-          <MemoCard
-            body={state.strategy || STRATEGY_PLACEHOLDER}
-            busy={busy}
-            refinable={judgmentRendered}
-            onRefine={(t) => refine("strategist", t)}
-          />
-
-          <ScoresCard rows={state.scores} />
-
-          <p className="disclaimer">
-            This tool provides AI-generated legal simulations and is not a
-            substitute for professional legal advice. The scores and
-            assessments are based on the input provided. Always consult with a
-            licensed attorney for final legal decisions.
-          </p>
-
-          <p className="text-center text-xs text-slate-400 font-mono tracking-[0.05em] mt-6 mb-6">
-            2026 · Malambo Mutila
-          </p>
         </main>
       </div>
     </>
   );
 }
+
+export default dynamic(() => Promise.resolve(MoootCourtApp), { ssr: false });
+
+export const getServerSideProps: GetServerSideProps = async () => ({
+  props: {},
+});

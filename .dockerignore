@@ -28,7 +28,8 @@ counselai.ipynb
 
 # Infra and tooling not needed inside the image
 terraform
-scripts
+scripts/*
+!scripts/start-prod.sh
 tests
 docs
 *.md

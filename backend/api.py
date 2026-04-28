@@ -30,7 +30,7 @@ from __future__ import annotations
 
 import json
 import logging
-from typing import Any, Dict, Generator, Optional
+from typing import Any, Dict, Generator, Literal, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import StreamingResponse
@@ -56,6 +56,12 @@ from backend.pipeline import (
     run_followup,
 )
 from backend.prompts import LEGAL_AREAS
+from backend.settings import (
+    CASE_DESCRIPTION_MAX_CHARS,
+    FOLLOW_UP_MAX_CHARS,
+    USER_POSITION_MAX_CHARS,
+)
+from backend.usage import UsageLease, UsageLimitError, release, reserve
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api")
@@ -74,9 +80,9 @@ def require_user(request: Request) -> str:
 # ── Pydantic models ────────────────────────────────────────────────────────
 
 class InitialRequest(BaseModel):
-    case_description: str = Field(..., min_length=1)
+    case_description: str = Field(..., min_length=1, max_length=CASE_DESCRIPTION_MAX_CHARS)
     legal_area: str
-    user_position: str = Field(..., min_length=1)
+    user_position: str = Field(..., min_length=1, max_length=USER_POSITION_MAX_CHARS)
     country: str = Field(..., min_length=1, description="Jurisdiction whose law applies")
 
 
@@ -86,8 +92,8 @@ class FinalJudgmentRequest(BaseModel):
 
 class RefineRequest(BaseModel):
     conversation_id: str
-    target: str  # plaintiff | defense | expert | judge | strategist
-    follow_up_text: str = Field(..., min_length=1)
+    target: Literal["plaintiff", "defense", "expert", "judge", "strategist"]
+    follow_up_text: str = Field(..., min_length=1, max_length=FOLLOW_UP_MAX_CHARS)
 
 
 # ── Helpers ────────────────────────────────────────────────────────────────
@@ -119,6 +125,17 @@ def _legal_areas_or_400(area: str) -> str:
 
 def _conversation_title(case: str) -> str:
     return (case[:60] + "…") if len(case) > 60 else case
+
+
+def require_usage_slot(user_id: str = Depends(require_user)) -> UsageLease:
+    try:
+        return reserve(user_id)
+    except UsageLimitError as e:
+        raise HTTPException(
+            status_code=429,
+            detail=e.detail,
+            headers={"Retry-After": str(e.retry_after)},
+        )
 
 
 # ── JSON endpoints ─────────────────────────────────────────────────────────
@@ -187,7 +204,11 @@ _SSE_HEADERS = {
 
 
 @router.post("/initial")
-def post_initial(req: InitialRequest, user_id: str = Depends(require_user)):
+def post_initial(
+    req: InitialRequest,
+    user_id: str = Depends(require_user),
+    lease: UsageLease = Depends(require_usage_slot),
+):
     """Phase 1: Plaintiff → Defense → Expert. Persists a new conversation and
     emits its id in the final ``done`` event."""
     area = _legal_areas_or_400(req.legal_area)
@@ -225,9 +246,11 @@ def post_initial(req: InitialRequest, user_id: str = Depends(require_user)):
         except ValueError as e:
             logger.warning("run_initial rejected: %s", e)
             yield _sse_event("error", {"detail": str(e)})
-        except Exception as e:
+        except Exception:
             logger.exception("run_initial crashed")
-            yield _sse_event("error", {"detail": str(e)})
+            yield _sse_event("error", {"detail": "An internal error occurred. Please try again."})
+        finally:
+            release(lease)
 
     return StreamingResponse(event_stream(), media_type="text/event-stream",
                              headers=_SSE_HEADERS)
@@ -237,6 +260,7 @@ def post_initial(req: InitialRequest, user_id: str = Depends(require_user)):
 def post_final_judgment(
     req: FinalJudgmentRequest,
     user_id: str = Depends(require_user),
+    lease: UsageLease = Depends(require_usage_slot),
 ):
     """Phase 2: Judge + Strategist on the latest turn of an existing conversation."""
     convo = store.load_conversation(user_id, req.conversation_id)
@@ -265,16 +289,22 @@ def post_final_judgment(
                                        "conversation_id": req.conversation_id})
         except ValueError as e:
             yield _sse_event("error", {"detail": str(e)})
-        except Exception as e:
+        except Exception:
             logger.exception("run_final_judgment crashed")
-            yield _sse_event("error", {"detail": str(e)})
+            yield _sse_event("error", {"detail": "An internal error occurred. Please try again."})
+        finally:
+            release(lease)
 
     return StreamingResponse(event_stream(), media_type="text/event-stream",
                              headers=_SSE_HEADERS)
 
 
 @router.post("/refine")
-def post_refine(req: RefineRequest, user_id: str = Depends(require_user)):
+def post_refine(
+    req: RefineRequest,
+    user_id: str = Depends(require_user),
+    lease: UsageLease = Depends(require_usage_slot),
+):
     """Re-run a single agent + cascade through downstream agents."""
     convo = store.load_conversation(user_id, req.conversation_id)
     if not convo or not convo.get("turns"):
@@ -302,9 +332,11 @@ def post_refine(req: RefineRequest, user_id: str = Depends(require_user)):
                                        "conversation_id": req.conversation_id})
         except ValueError as e:
             yield _sse_event("error", {"detail": str(e)})
-        except Exception as e:
+        except Exception:
             logger.exception("run_followup crashed")
-            yield _sse_event("error", {"detail": str(e)})
+            yield _sse_event("error", {"detail": "An internal error occurred. Please try again."})
+        finally:
+            release(lease)
 
     return StreamingResponse(event_stream(), media_type="text/event-stream",
                              headers=_SSE_HEADERS)

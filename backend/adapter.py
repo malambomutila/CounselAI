@@ -8,6 +8,7 @@ from __future__ import annotations
 import logging
 from typing import Optional
 
+import httpx
 from openai import OpenAI
 
 from backend.settings import OPENAI_API_KEY, AgentConfig
@@ -21,7 +22,14 @@ _client: Optional[OpenAI] = None
 def _get_client() -> OpenAI:
     global _client
     if _client is None:
-        _client = OpenAI(api_key=OPENAI_API_KEY)
+        _client = OpenAI(
+            api_key=OPENAI_API_KEY,
+            # 5s to connect, 120s to read the full response (judge uses up to
+            # 2000 tokens so needs breathing room). max_retries=2 gives one
+            # automatic retry with exponential backoff on 429 / 5xx.
+            timeout=httpx.Timeout(120.0, connect=5.0),
+            max_retries=2,
+        )
     return _client
 
 

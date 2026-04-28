@@ -1,4 +1,4 @@
-"""Conversation + turn persistence for CounselAI.
+"""Conversation + turn persistence for MoootCourt.
 
 Three pluggable backends, selected by ``STORE_BACKEND`` in settings:
 
@@ -115,6 +115,11 @@ def _sqlite() -> sqlite3.Connection:
                 path.parent.mkdir(parents=True, exist_ok=True)
                 conn = sqlite3.connect(str(path), check_same_thread=False)
                 conn.row_factory = sqlite3.Row
+                # WAL mode allows concurrent readers alongside one writer,
+                # which is required when multiple Gunicorn workers share the
+                # same SQLite file. NORMAL sync is safe with WAL.
+                conn.execute("PRAGMA journal_mode=WAL")
+                conn.execute("PRAGMA synchronous=NORMAL")
                 conn.executescript(_SQLITE_SCHEMA)
                 conn.commit()
                 _sqlite_migrate(conn)

@@ -7,8 +7,6 @@ terraform {
       version = "~> 5.0"
     }
   }
-
-  # Local state — fine for a throwaway showcase. terraform.tfstate is gitignored.
 }
 
 provider "aws" {
@@ -16,6 +14,36 @@ provider "aws" {
 }
 
 data "aws_caller_identity" "current" {}
+
+data "aws_vpc" "default" {
+  count   = var.create_ec2_instance && var.ec2_vpc_id == "" ? 1 : 0
+  default = true
+}
+
+data "aws_subnets" "default" {
+  count = var.create_ec2_instance && var.ec2_subnet_id == "" ? 1 : 0
+
+  filter {
+    name   = "vpc-id"
+    values = [data.aws_vpc.default[0].id]
+  }
+}
+
+data "aws_ami" "amazon_linux_2023" {
+  count       = var.create_ec2_instance && var.ec2_ami_id == "" ? 1 : 0
+  most_recent = true
+  owners      = ["amazon"]
+
+  filter {
+    name   = "name"
+    values = ["al2023-ami-2023.*-x86_64"]
+  }
+
+  filter {
+    name   = "virtualization-type"
+    values = ["hvm"]
+  }
+}
 
 locals {
   name = "${var.project}-${var.env}"
@@ -25,34 +53,84 @@ locals {
     Env       = var.env
     ManagedBy = "terraform"
   }
+
+  ec2_vpc_id = var.ec2_vpc_id != "" ? var.ec2_vpc_id : (
+    var.create_ec2_instance ? data.aws_vpc.default[0].id : null
+  )
+
+  ec2_subnet_id = var.ec2_subnet_id != "" ? var.ec2_subnet_id : (
+    var.create_ec2_instance ? data.aws_subnets.default[0].ids[0] : null
+  )
+
+  ec2_ami_id = var.ec2_ami_id != "" ? var.ec2_ami_id : (
+    var.create_ec2_instance ? data.aws_ami.amazon_linux_2023[0].id : null
+  )
 }
 
-# ─────────────────────────────────────────────────────────────────────────────
-# ECR — image lives here; App Runner pulls :latest each deploy.
-# ─────────────────────────────────────────────────────────────────────────────
-
-resource "aws_ecr_repository" "this" {
-  name                 = local.name
+resource "aws_ecr_repository" "backend" {
+  name                 = "${local.name}-backend"
   image_tag_mutability = "MUTABLE"
   force_delete         = true
 
   image_scanning_configuration {
-    scan_on_push = false
+    scan_on_push = true
   }
 
   tags = local.common_tags
 }
 
-# ─────────────────────────────────────────────────────────────────────────────
-# DynamoDB — single-table store for conversations + turns.
-# Schema (see CLAUDE.md "Storage: DynamoDB single-table"):
-#   PK = USER#{user_id}
-#   SK = CONV#{conv_id}                    → conversation header
-#   SK = CONV#{conv_id}#TURN#{turn_n}      → one pipeline run
-# On-demand billing → ~$0 idle, pennies under demo load.
-# ─────────────────────────────────────────────────────────────────────────────
+resource "aws_ecr_repository" "frontend" {
+  name                 = "${local.name}-frontend"
+  image_tag_mutability = "MUTABLE"
+  force_delete         = true
+
+  image_scanning_configuration {
+    scan_on_push = true
+  }
+
+  tags = local.common_tags
+}
+
+resource "aws_ecr_lifecycle_policy" "backend" {
+  repository = aws_ecr_repository.backend.name
+
+  policy = jsonencode({
+    rules = [{
+      rulePriority = 1
+      description  = "Keep the 10 most recent backend images"
+      selection = {
+        tagStatus   = "any"
+        countType   = "imageCountMoreThan"
+        countNumber = 10
+      }
+      action = {
+        type = "expire"
+      }
+    }]
+  })
+}
+
+resource "aws_ecr_lifecycle_policy" "frontend" {
+  repository = aws_ecr_repository.frontend.name
+
+  policy = jsonencode({
+    rules = [{
+      rulePriority = 1
+      description  = "Keep the 10 most recent frontend images"
+      selection = {
+        tagStatus   = "any"
+        countType   = "imageCountMoreThan"
+        countNumber = 10
+      }
+      action = {
+        type = "expire"
+      }
+    }]
+  })
+}
 
 resource "aws_dynamodb_table" "this" {
+  count        = var.create_dynamodb_table ? 1 : 0
   name         = local.name
   billing_mode = "PAY_PER_REQUEST"
   hash_key     = "PK"
@@ -75,15 +153,8 @@ resource "aws_dynamodb_table" "this" {
   tags = local.common_tags
 }
 
-# ─────────────────────────────────────────────────────────────────────────────
-# IAM — App Runner needs two roles:
-#   1. access_role — assumed by build.apprunner to pull from ECR.
-#   2. instance_role — assumed by tasks.apprunner; what the running container
-#      gets credentials for. Boto3 inside the container picks this up.
-# ─────────────────────────────────────────────────────────────────────────────
-
-resource "aws_iam_role" "apprunner_access" {
-  name = "${local.name}-apprunner-access"
+resource "aws_iam_role" "ec2_instance" {
+  name = "${local.name}-ec2-instance"
 
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
@@ -91,7 +162,7 @@ resource "aws_iam_role" "apprunner_access" {
       Action = "sts:AssumeRole"
       Effect = "Allow"
       Principal = {
-        Service = "build.apprunner.amazonaws.com"
+        Service = "ec2.amazonaws.com"
       }
     }]
   })
@@ -99,115 +170,130 @@ resource "aws_iam_role" "apprunner_access" {
   tags = local.common_tags
 }
 
-resource "aws_iam_role_policy_attachment" "apprunner_access_ecr" {
-  role       = aws_iam_role.apprunner_access.name
-  policy_arn = "arn:aws:iam::aws:policy/service-role/AWSAppRunnerServicePolicyForECRAccess"
+resource "aws_iam_role_policy_attachment" "ec2_ssm" {
+  role       = aws_iam_role.ec2_instance.name
+  policy_arn = "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"
 }
 
-resource "aws_iam_role" "apprunner_instance" {
-  name = "${local.name}-apprunner-instance"
-
-  assume_role_policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [{
-      Action = "sts:AssumeRole"
-      Effect = "Allow"
-      Principal = {
-        Service = "tasks.apprunner.amazonaws.com"
-      }
-    }]
-  })
-
-  tags = local.common_tags
+resource "aws_iam_role_policy_attachment" "ec2_ecr" {
+  role       = aws_iam_role.ec2_instance.name
+  policy_arn = "arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly"
 }
 
-# Scoped DynamoDB access for the running container — read/write only this table.
-resource "aws_iam_role_policy" "apprunner_dynamodb" {
-  name = "${local.name}-dynamodb"
-  role = aws_iam_role.apprunner_instance.id
+resource "aws_iam_role_policy_attachment" "ec2_cloudwatch" {
+  role       = aws_iam_role.ec2_instance.name
+  policy_arn = "arn:aws:iam::aws:policy/CloudWatchAgentServerPolicy"
+}
+
+resource "aws_iam_role_policy" "ec2_app_access" {
+  name = "${local.name}-ec2-app-access"
+  role = aws_iam_role.ec2_instance.id
 
   policy = jsonencode({
     Version = "2012-10-17"
-    Statement = [{
-      Effect = "Allow"
-      Action = [
-        "dynamodb:GetItem",
-        "dynamodb:PutItem",
-        "dynamodb:UpdateItem",
-        "dynamodb:DeleteItem",
-        "dynamodb:Query",
-        "dynamodb:BatchGetItem",
-        "dynamodb:BatchWriteItem",
-      ]
-      Resource = aws_dynamodb_table.this.arn
-    }]
+    Statement = concat(
+      [{
+        Effect = "Allow"
+        Action = [
+          "ecr:GetAuthorizationToken"
+        ]
+        Resource = "*"
+      }],
+      var.create_dynamodb_table ? [{
+        Effect = "Allow"
+        Action = [
+          "dynamodb:GetItem",
+          "dynamodb:PutItem",
+          "dynamodb:UpdateItem",
+          "dynamodb:DeleteItem",
+          "dynamodb:Query",
+          "dynamodb:BatchGetItem",
+          "dynamodb:BatchWriteItem",
+        ]
+        Resource = aws_dynamodb_table.this[0].arn
+      }] : []
+    )
   })
 }
 
-# ─────────────────────────────────────────────────────────────────────────────
-# App Runner service
-# ─────────────────────────────────────────────────────────────────────────────
+resource "aws_iam_instance_profile" "ec2" {
+  name = "${local.name}-ec2-profile"
+  role = aws_iam_role.ec2_instance.name
+}
 
-resource "aws_apprunner_service" "this" {
-  service_name = local.name
+resource "aws_security_group" "ec2" {
+  count       = var.create_ec2_instance ? 1 : 0
+  name        = "${local.name}-ec2"
+  description = "MoootCourt EC2 ingress"
+  vpc_id      = local.ec2_vpc_id
 
-  source_configuration {
-    auto_deployments_enabled = false
-
-    authentication_configuration {
-      access_role_arn = aws_iam_role.apprunner_access.arn
-    }
-
-    image_repository {
-      image_identifier      = "${aws_ecr_repository.this.repository_url}:latest"
-      image_repository_type = "ECR"
-
-      image_configuration {
-        port = "8080"
-
-        # Secrets are passed in via TF_VAR_* at deploy time — never committed.
-        runtime_environment_variables = {
-          # LLM
-          OPENAI_API_KEY = var.openai_api_key
-          OPENAI_MODEL   = var.openai_model
-
-          # Auth (Clerk)
-          NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY = var.clerk_publishable_key
-          CLERK_SECRET_KEY                  = var.clerk_secret_key
-          CLERK_JWKS_URL                    = var.clerk_jwks_url
-          CLERK_FRONTEND_API_URL            = var.clerk_frontend_api_url
-          # Same-origin in App Runner: the only legitimate ``azp`` is the
-          # service's own URL. Set after the first apply (chicken-and-egg —
-          # the URL is unknown until creation), then re-apply.
-          CLERK_AUTHORIZED_PARTIES = var.clerk_authorized_parties
-
-          # Storage
-          DDB_TABLE  = aws_dynamodb_table.this.name
-          DDB_REGION = var.aws_region
-
-          # App
-          GRADIO_SERVER_NAME = "0.0.0.0"
-          GRADIO_SERVER_PORT = "8080"
-          LOG_LEVEL          = var.log_level
-        }
-      }
-    }
+  ingress {
+    description = "SSH"
+    from_port   = 22
+    to_port     = 22
+    protocol    = "tcp"
+    cidr_blocks = var.ssh_cidr_blocks
   }
 
-  instance_configuration {
-    cpu               = "1 vCPU"
-    memory            = "2 GB"
-    instance_role_arn = aws_iam_role.apprunner_instance.arn
+  ingress {
+    description = "HTTP"
+    from_port   = 80
+    to_port     = 80
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
   }
 
-  health_check_configuration {
-    protocol            = "HTTP"
-    path                = "/health"
-    interval            = 20
-    timeout             = 5
-    healthy_threshold   = 1
-    unhealthy_threshold = 5
+  ingress {
+    description = "HTTPS"
+    from_port   = 443
+    to_port     = 443
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
   }
 
   tags = local.common_tags
+}
+
+resource "aws_instance" "app" {
+  count                       = var.create_ec2_instance ? 1 : 0
+  ami                         = local.ec2_ami_id
+  instance_type               = var.ec2_instance_type
+  subnet_id                   = local.ec2_subnet_id
+  vpc_security_group_ids      = [aws_security_group.ec2[0].id]
+  iam_instance_profile        = aws_iam_instance_profile.ec2.name
+  key_name                    = var.ec2_key_name != "" ? var.ec2_key_name : null
+  associate_public_ip_address = true
+  user_data_replace_on_change = true
+
+  root_block_device {
+    volume_size = var.ec2_root_volume_size_gb
+    volume_type = "gp3"
+    encrypted   = true
+  }
+
+  user_data = <<-EOF
+    #!/bin/bash
+    set -euxo pipefail
+    dnf update -y
+    dnf install -y docker git
+    systemctl enable --now docker
+    usermod -aG docker ec2-user || true
+    mkdir -p /opt/counselai /var/lib/counselai/data
+    chown -R ec2-user:ec2-user /opt/counselai /var/lib/counselai
+    mkdir -p /usr/local/lib/docker/cli-plugins
+    curl -SL https://github.com/docker/compose/releases/download/v2.39.4/docker-compose-linux-x86_64 \
+      -o /usr/local/lib/docker/cli-plugins/docker-compose
+    chmod +x /usr/local/lib/docker/cli-plugins/docker-compose
+  EOF
+
+  tags = merge(local.common_tags, {
+    Name = "${local.name}-ec2"
+  })
 }

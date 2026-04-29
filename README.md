@@ -1,6 +1,10 @@
 # MoootCourt
 
+**Live at [https://moootcourt.com](https://moootcourt.com)**
+
 A multi-agent legal analysis tool that puts five AI legal specialists on your case simultaneously.
+
+> Originally built as **CounselAI**, an Andela AI Engineering Bootcamp capstone project.
 
 ---
 
@@ -69,9 +73,18 @@ MoootCourt is a legal research and preparation tool. It is not legal advice and 
    ```bash
    cd frontend
    npm install
-   # Create frontend/.env.local with your Clerk publishable key
-   echo "NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=pk_test_..." > .env.local
-   echo "NEXT_PUBLIC_API_BASE_URL=http://localhost:8080" >> .env.local
+   ```
+
+   Create `frontend/.env.local`:
+
+   ```
+   NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=pk_test_...
+   NEXT_PUBLIC_API_BASE_URL=http://localhost:8080
+   ```
+
+   Then start the dev server:
+
+   ```bash
    npm run dev
    ```
 
@@ -79,66 +92,74 @@ MoootCourt is a legal research and preparation tool. It is not legal advice and 
 
 ---
 
-## Deploying to EC2
+## Deploying with Docker
 
-### Stack
+### Requirements
 
-- **Backend:** FastAPI served by Gunicorn + Uvicorn workers
-- **Frontend:** Next.js standalone build served by Node
-- **Reverse proxy:** Caddy (automatic HTTPS via Let's Encrypt)
-- **Data:** SQLite on a persistent Docker named volume
+- Docker and Docker Compose
+- A domain name pointed at your server
+- A Clerk account and OpenAI API key
 
-### Quick start
+### Setup
 
-1. Provision an EC2 instance (Ubuntu 22.04+, t3.small or larger).
-
-2. Open inbound ports: `22` (SSH), `80`, `443`, and optionally `8080`.
-
-3. Install Docker on the instance:
-
-   ```bash
-   sudo apt-get update && sudo apt-get install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin
-   sudo usermod -aG docker $USER
-   ```
-
-4. Copy the project to the instance (excluding `.env` and build artifacts):
-
-   ```bash
-   rsync -av --exclude='.git' --exclude='node_modules' --exclude='.next' \
-     --exclude='__pycache__' --exclude='.env' \
-     ./ ubuntu@<EC2_IP>:~/counselai/
-   ```
-
-5. On the instance, create `.env` from the template and set the production values:
+1. Copy the environment template and fill in your values:
 
    ```bash
    cp .env.example .env
-   # Edit .env — at minimum set:
-   #   COUNSELAI_SITE_ADDRESS, TRUSTED_HOSTS, CLERK_AUTHORIZED_PARTIES,
-   #   FORCE_HTTPS, ACME_EMAIL, and all API keys
    ```
 
-6. Create the persistent data directory:
+   Required values for a production deployment:
 
+   | Variable | What to set |
+   |---|---|
+   | `COUNSELAI_SITE_ADDRESS` | Your domain (e.g. `example.com`) or `:8080` for HTTP-only |
+   | `TRUSTED_HOSTS` | `your-domain.com,localhost,127.0.0.1` |
+   | `CLERK_AUTHORIZED_PARTIES` | `https://your-domain.com` |
+   | `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` | From Clerk dashboard |
+   | `CLERK_SECRET_KEY` | From Clerk dashboard |
+   | `CLERK_JWKS_URL` | From Clerk dashboard |
+   | `OPENAI_API_KEY` | From OpenAI |
+
+2. Create the persistent data directory:
+
+   **Linux / macOS:**
    ```bash
    sudo mkdir -p /var/lib/counselai/data/backups
    sudo chown -R 1000:1000 /var/lib/counselai
    ```
 
-7. Build and start:
+   **Windows (PowerShell as Administrator):**
+   ```powershell
+   New-Item -ItemType Directory -Force -Path "C:\counselai\data\backups"
+   ```
+   Then update `SQLITE_PATH` in `.env` to `C:/counselai/data/counselai.sqlite`.
+
+3. Build and start the stack:
 
    ```bash
-   docker compose -f docker-compose.ec2.yml up -d --build
+   docker compose up -d --build
    ```
 
-8. Verify:
+4. Verify all three services are healthy:
 
    ```bash
-   curl http://127.0.0.1:8080/health
-   docker compose -f docker-compose.ec2.yml ps
+   docker compose ps
+   curl https://your-domain.com/health
    ```
 
-See `CLAUDE.md` (internal, not committed to git) for the full step-by-step deployment guide including ongoing operations commands.
+### Managing the stack
+
+```bash
+docker compose logs -f          # stream all logs
+docker compose logs -f app      # backend only
+docker compose logs -f frontend # frontend only
+docker compose logs -f caddy    # reverse proxy / HTTPS
+docker compose restart          # restart without rebuilding
+docker compose down             # stop (data is preserved)
+docker compose up -d --build    # rebuild and restart after code changes
+```
+
+SQLite data lives in the `counselai_data` Docker named volume and is not affected by restarts or rebuilds. To wipe all data: `docker compose down -v` (destructive).
 
 ---
 
@@ -154,12 +175,11 @@ See `CLAUDE.md` (internal, not committed to git) for the full step-by-step deplo
 | `OPENAI_MODEL` | Model to use (default: `gpt-4.1-mini`) | No |
 | `SQLITE_PATH` | Path to SQLite database file | No |
 | `TRUSTED_HOSTS` | Hostnames accepted by the backend | Production |
-| `COUNSELAI_SITE_ADDRESS` | Domain passed to Caddy (e.g. `your-domain.com`) | EC2 |
-| `FORCE_HTTPS` | Redirect HTTP to HTTPS | EC2 with domain |
-| `ACME_EMAIL` | Email for Let's Encrypt registration | EC2 with domain |
+| `COUNSELAI_SITE_ADDRESS` | Domain passed to Caddy (e.g. `example.com`) | Docker |
+| `ACME_EMAIL` | Email for Let's Encrypt renewal notices | Optional |
 | `LOG_LEVEL` | Logging verbosity (`INFO`, `DEBUG`, etc.) | No |
 
-Never put real credentials in `.env.example` or any committed file. See `.env.example` for the full list of configurable values.
+See `.env.example` for the full list of configurable values. Never commit `.env` or put real credentials in `.env.example`.
 
 ---
 
@@ -175,4 +195,3 @@ Never put real credentials in `.env.example` or any committed file. See `.env.ex
 | Reverse proxy | Caddy |
 | Containers | Docker Compose |
 | CI | GitHub Actions |
-| Infrastructure | Terraform (AWS ECR + IAM + optional EC2) |

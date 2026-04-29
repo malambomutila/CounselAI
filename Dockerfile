@@ -21,6 +21,7 @@ RUN chmod +x ./scripts/start-prod.sh \
  && mkdir -p /var/lib/counselai/data /var/log/counselai \
  && chown -R counselai:counselai /app /var/lib/counselai /var/log/counselai
 
+ENV HOME=/tmp
 ENV APP_ENV=production
 ENV SERVER_HOST=0.0.0.0
 ENV SERVER_PORT=8080

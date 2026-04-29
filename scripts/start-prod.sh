@@ -13,7 +13,7 @@ if [[ -n "${SQLITE_PATH:-}" ]]; then
   mkdir -p "$(dirname "$SQLITE_PATH")"
 fi
 
-exec uv run gunicorn server:app \
+exec /app/.venv/bin/gunicorn server:app \
   --worker-class uvicorn.workers.UvicornWorker \
   --bind "${HOST}:${PORT}" \
   --workers "$WORKERS" \

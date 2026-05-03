@@ -214,3 +214,6 @@ override.tf.json
 *_override.tf
 *_override.tf.json
 moootcourt-presentation.html
+
+# Playwright MCP tool output (local browser snapshots and console logs)
+.playwright-mcp/

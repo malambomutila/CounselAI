@@ -1,9 +1,0 @@
-- generic [active] [ref=e1]:
-  - main [ref=e3]:
-    - generic [ref=e4]:
-      - heading "CounselAI" [level=1] [ref=e5]
-      - paragraph [ref=e6]: Five AI legal specialists analyse your case from every angle so you walk into proceedings fully prepared. Sign in to begin.
-      - paragraph [ref=e7]: For legal research only. Not legal advice and not a substitute for a licensed practitioner.
-  - button "Open Next.js Dev Tools" [ref=e13] [cursor=pointer]:
-    - img [ref=e14]
-  - alert [ref=e17]

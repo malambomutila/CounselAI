@@ -102,15 +102,18 @@ def reset_active_requests() -> None:
     """On process boot, clear stale in-flight counts from previous crashes."""
     if not RATE_LIMIT_ENABLED:
         return
-    if STORE_BACKEND != "sqlite":
-        with _mem_lock:
-            for state in _mem.values():
-                state["active_requests"] = 0
-        return
-    conn = _sqlite()
-    with _sqlite_lock:
-        conn.execute("UPDATE usage_limits SET active_requests=0")
-        conn.commit()
+    try:
+        if STORE_BACKEND != "sqlite":
+            with _mem_lock:
+                for state in _mem.values():
+                    state["active_requests"] = 0
+            return
+        conn = _sqlite()
+        with _sqlite_lock:
+            conn.execute("UPDATE usage_limits SET active_requests=0")
+            conn.commit()
+    except Exception:
+        logger.exception("reset_active_requests failed — stale in-flight counts may persist")
 
 
 def _load_sqlite_state(user_id: str) -> sqlite3.Row | None:
@@ -265,27 +268,31 @@ def release(lease: UsageLease | None) -> None:
         return
 
     user_id = lease.user_id
-
-    if STORE_BACKEND == "sqlite":
-        conn = _sqlite()
-        with _sqlite_lock:
-            conn.execute(
-                """
-                UPDATE usage_limits
-                SET active_requests = CASE
-                    WHEN active_requests > 0 THEN active_requests - 1
-                    ELSE 0
-                END,
-                updated_at = ?
-                WHERE user_id = ?
-                """,
-                (_iso_now(), user_id),
-            )
-            conn.commit()
-    else:
-        with _mem_lock:
-            state = _mem.get(user_id)
-            if state is not None:
-                state["active_requests"] = max(0, state.get("active_requests", 0) - 1)
-
+    # Mark released before the DB write so a crash below doesn't cause a
+    # stuck in-flight count if the caller retries.
     lease.released = True
+
+    try:
+        if STORE_BACKEND == "sqlite":
+            conn = _sqlite()
+            with _sqlite_lock:
+                conn.execute(
+                    """
+                    UPDATE usage_limits
+                    SET active_requests = CASE
+                        WHEN active_requests > 0 THEN active_requests - 1
+                        ELSE 0
+                    END,
+                    updated_at = ?
+                    WHERE user_id = ?
+                    """,
+                    (_iso_now(), user_id),
+                )
+                conn.commit()
+        else:
+            with _mem_lock:
+                state = _mem.get(user_id)
+                if state is not None:
+                    state["active_requests"] = max(0, state.get("active_requests", 0) - 1)
+    except Exception:
+        logger.exception("release failed for user %s — active_requests may be inflated", user_id)

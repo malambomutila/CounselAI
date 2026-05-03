@@ -14,6 +14,7 @@ import { UserMenu } from "@/components/UserMenu";
 import {
   api,
   stream,
+  ApiError,
   type ConversationHeader,
   type PipelineState,
   type RefineTarget,
@@ -26,6 +27,22 @@ import {
 } from "@/lib/constants";
 
 type CaseHeader = { case: string; area: string; position: string; country: string };
+
+// 3 minutes — enough for the longest cascade (5 agents), with headroom.
+const STREAM_TIMEOUT_MS = 180_000;
+
+// Translate an API error into a user-facing string.
+// 401 → caller should redirect; 429 → backend message is already friendly;
+// everything else → generic message that doesn't leak internals.
+function apiErrorMessage(e: unknown): { msg: string; isAuth: boolean } {
+  if (e instanceof ApiError) {
+    if (e.status === 401) return { msg: "", isAuth: true };
+    if (e.status === 429) return { msg: e.detail, isAuth: false };
+    if (e.status === 404) return { msg: "Conversation not found.", isAuth: false };
+    return { msg: "Something went wrong. Please try again.", isAuth: false };
+  }
+  return { msg: (e as Error).message ?? "Something went wrong.", isAuth: false };
+}
 
 // localStorage key per Clerk user — so signing in as user B doesn't restore
 // user A's last open conversation. Scoped by sub; the sub itself is opaque.
@@ -65,9 +82,13 @@ function MoootCourtApp() {
       const { conversations } = await api.listConversations(t);
       setHistory(conversations);
     } catch (e) {
-      console.warn("listConversations failed", e);
+      if (e instanceof ApiError && e.status === 401) {
+        router.replace("/");
+        return;
+      }
+      setError("Failed to load conversation history. Refresh the page to try again.");
     }
-  }, [getToken]);
+  }, [getToken, router]);
 
   useEffect(() => {
     if (isLoaded && isSignedIn) refreshHistory();
@@ -125,16 +146,18 @@ function MoootCourtApp() {
         });
         setError("");
       } catch (e) {
-        setError((e as Error).message);
+        const { msg, isAuth } = apiErrorMessage(e);
+        if (isAuth) { router.replace("/"); return; }
+        setError(msg);
       }
     },
-    [getToken]
+    [getToken, router]
   );
 
   const startInitial = useCallback(
     async (payload: CaseHeader) => {
       const t = await getToken();
-      if (!t) return;
+      if (!t) { setError("Session expired. Please sign in again."); return; }
       cancelInFlight();
       const ctrl = new AbortController();
       abortRef.current = ctrl;
@@ -144,6 +167,8 @@ function MoootCourtApp() {
       setActiveId("");
       setCaseHeader(payload);
 
+      let timedOut = false;
+      const timeoutId = setTimeout(() => { timedOut = true; ctrl.abort(); }, STREAM_TIMEOUT_MS);
       try {
         await stream.initial(
           t,
@@ -164,12 +189,19 @@ function MoootCourtApp() {
           ctrl.signal
         );
       } catch (e) {
-        if (!ctrl.signal.aborted) setError((e as Error).message);
+        if (ctrl.signal.aborted) {
+          if (timedOut) setError("The analysis timed out. Please try again.");
+        } else {
+          const { msg, isAuth } = apiErrorMessage(e);
+          if (isAuth) { router.replace("/"); return; }
+          setError(msg);
+        }
       } finally {
+        clearTimeout(timeoutId);
         setBusy(false);
       }
     },
-    [getToken, refreshHistory]
+    [getToken, refreshHistory, router]
   );
 
   const pronounceJudgment = useCallback(async () => {
@@ -178,12 +210,15 @@ function MoootCourtApp() {
       return;
     }
     const t = await getToken();
-    if (!t) return;
+    if (!t) { setError("Session expired. Please sign in again."); return; }
     cancelInFlight();
     const ctrl = new AbortController();
     abortRef.current = ctrl;
     setBusy(true);
     setError("");
+
+    let timedOut = false;
+    const timeoutId = setTimeout(() => { timedOut = true; ctrl.abort(); }, STREAM_TIMEOUT_MS);
     try {
       await stream.finalJudgment(
         t,
@@ -196,11 +231,18 @@ function MoootCourtApp() {
         ctrl.signal
       );
     } catch (e) {
-      if (!ctrl.signal.aborted) setError((e as Error).message);
+      if (ctrl.signal.aborted) {
+        if (timedOut) setError("The analysis timed out. Please try again.");
+      } else {
+        const { msg, isAuth } = apiErrorMessage(e);
+        if (isAuth) { router.replace("/"); return; }
+        setError(msg);
+      }
     } finally {
+      clearTimeout(timeoutId);
       setBusy(false);
     }
-  }, [activeId, getToken, refreshHistory]);
+  }, [activeId, getToken, refreshHistory, router]);
 
   const refine = useCallback(
     async (target: RefineTarget, follow_up_text: string) => {
@@ -209,12 +251,15 @@ function MoootCourtApp() {
         return;
       }
       const t = await getToken();
-      if (!t) return;
+      if (!t) { setError("Session expired. Please sign in again."); return; }
       cancelInFlight();
       const ctrl = new AbortController();
       abortRef.current = ctrl;
       setBusy(true);
       setError("");
+
+      let timedOut = false;
+      const timeoutId = setTimeout(() => { timedOut = true; ctrl.abort(); }, STREAM_TIMEOUT_MS);
       try {
         await stream.refine(
           t,
@@ -227,12 +272,19 @@ function MoootCourtApp() {
           ctrl.signal
         );
       } catch (e) {
-        if (!ctrl.signal.aborted) setError((e as Error).message);
+        if (ctrl.signal.aborted) {
+          if (timedOut) setError("The analysis timed out. Please try again.");
+        } else {
+          const { msg, isAuth } = apiErrorMessage(e);
+          if (isAuth) { router.replace("/"); return; }
+          setError(msg);
+        }
       } finally {
+        clearTimeout(timeoutId);
         setBusy(false);
       }
     },
-    [activeId, getToken, refreshHistory]
+    [activeId, getToken, refreshHistory, router]
   );
 
   const newCase = () => {

@@ -10,10 +10,10 @@
 
 @layer base {
   :root {
-    --primary:        #0F52FF;
-    --primary-dark:   #0a3fcc;
-    --primary-tint:   rgba(15, 82, 255, 0.08);
-    --primary-ring:   rgba(15, 82, 255, 0.18);
+    --primary:        #000000;
+    --primary-dark:   #111111;
+    --primary-tint:   rgba(0, 0, 0, 0.06);
+    --primary-ring:   rgba(0, 0, 0, 0.15);
 
     --ink:        #0f172a;
     --ink-muted:  #475569;
@@ -366,7 +366,7 @@
   }
   .user-menu-avatar:hover {
     transform: scale(1.04);
-    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04), 0 6px 16px rgba(15, 82, 255, 0.18),
+    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04), 0 6px 16px rgba(0, 0, 0, 0.18),
                 inset 0 -1px 0 rgba(0, 0, 0, 0.08);
   }
   .user-menu-avatar:focus-visible {
@@ -538,12 +538,12 @@
     box-shadow: 0 0 0 3px var(--primary-tint);
   }
   .agent-card[data-agent="defense"] .agent-header {
-    border-left-color: #0f172a;
-    background: linear-gradient(90deg, var(--slate-tint), transparent 60%);
+    border-left-color: #0F52FF;
+    background: linear-gradient(90deg, rgba(15, 82, 255, 0.08), transparent 60%);
   }
   .agent-card[data-agent="defense"] .agent-header h3::before {
-    background: #0f172a;
-    box-shadow: 0 0 0 3px var(--slate-tint);
+    background: #0F52FF;
+    box-shadow: 0 0 0 3px rgba(15, 82, 255, 0.08);
   }
   .agent-card[data-agent="expert"] .agent-header {
     border-left-color: #d97706;

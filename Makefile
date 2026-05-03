@@ -39,13 +39,13 @@ run:
 	  counselai:latest
 
 prod-up:
-	docker compose -f docker-compose.ec2.yml up -d --build
+	docker compose up -d --build
 
 prod-down:
-	docker compose -f docker-compose.ec2.yml down
+	docker compose down
 
 prod-logs:
-	docker compose -f docker-compose.ec2.yml logs -f
+	docker compose logs -f
 
 backup-sqlite:
 	mkdir -p data/backups

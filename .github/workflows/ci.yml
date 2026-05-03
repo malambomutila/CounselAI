@@ -32,6 +32,11 @@ jobs:
           DDB_TABLE: ""
         run: uv run pytest tests/test_pipeline.py -q
 
+      - name: Security audit (pip-audit)
+        run: |
+          uv export --no-dev > /tmp/reqs.txt
+          uvx pip-audit -r /tmp/reqs.txt
+
   frontend:
     runs-on: ubuntu-latest
     defaults:
@@ -53,13 +58,16 @@ jobs:
 
       - name: Lint frontend
         env:
-          NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: pk_test_ci_placeholder
+          NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: ${{ secrets.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY }}
         run: npm run lint
 
       - name: Build frontend
         env:
-          NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: pk_test_ci_placeholder
+          NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: ${{ secrets.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY }}
         run: npm run build
+
+      - name: Security audit (npm audit)
+        run: npm audit --audit-level=high
 
   docker:
     runs-on: ubuntu-latest
@@ -67,18 +75,101 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Build production image
-        env:
-          NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: pk_test_ci_placeholder
-        run: |
-          docker build \
-            --build-arg NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY="$NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY" \
-            -t counselai:ci .
+      - name: Build backend image
+        run: docker build -t counselai:ci .
 
       - name: Build frontend image
         env:
-          NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: pk_test_ci_placeholder
+          NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: ${{ secrets.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY }}
         run: |
           docker build \
             --build-arg NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY="$NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY" \
             -t counselai-frontend:ci ./frontend
+
+  deploy:
+    needs: [backend, frontend, docker]
+    runs-on: ubuntu-latest
+    # Only deploy on push to main — not on PRs
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    env:
+      EC2_HOST: ${{ secrets.EC2_HOST }}
+      EC2_USER: ${{ secrets.EC2_USER }}
+      EC2_DEPLOY_PATH: ${{ secrets.EC2_DEPLOY_PATH }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure SSH
+        env:
+          SSH_KEY: ${{ secrets.EC2_SSH_KEY }}
+        run: |
+          mkdir -p ~/.ssh
+          echo "$SSH_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H "$EC2_HOST" >> ~/.ssh/known_hosts
+
+      - name: Sync source to EC2
+        run: |
+          rsync -az --delete \
+            -e "ssh -i ~/.ssh/deploy_key" \
+            --exclude='.git/' \
+            --exclude='.env' \
+            --exclude='data/' \
+            --exclude='frontend/node_modules/' \
+            --exclude='frontend/.next/' \
+            --exclude='frontend/out/' \
+            --exclude='__pycache__/' \
+            --exclude='.venv/' \
+            . "$EC2_USER@$EC2_HOST:$EC2_DEPLOY_PATH/"
+
+      - name: Write .env to EC2
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          OPENAI_MODEL: ${{ secrets.OPENAI_MODEL }}
+          NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: ${{ secrets.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY }}
+          CLERK_SECRET_KEY: ${{ secrets.CLERK_SECRET_KEY }}
+          CLERK_JWKS_URL: ${{ secrets.CLERK_JWKS_URL }}
+          CLERK_FRONTEND_API_URL: ${{ secrets.CLERK_FRONTEND_API_URL }}
+          CLERK_AUTHORIZED_PARTIES: ${{ secrets.CLERK_AUTHORIZED_PARTIES }}
+          COUNSELAI_SITE_ADDRESS: ${{ secrets.COUNSELAI_SITE_ADDRESS }}
+          ACME_EMAIL: ${{ secrets.ACME_EMAIL }}
+          TRUSTED_HOSTS: ${{ secrets.TRUSTED_HOSTS }}
+          FORCE_HTTPS: ${{ secrets.FORCE_HTTPS }}
+          CORS_ORIGINS: ${{ secrets.CORS_ORIGINS }}
+          LOG_LEVEL: ${{ secrets.LOG_LEVEL }}
+          WEB_CONCURRENCY: ${{ secrets.WEB_CONCURRENCY }}
+          GUNICORN_THREADS: ${{ secrets.GUNICORN_THREADS }}
+          GUNICORN_TIMEOUT: ${{ secrets.GUNICORN_TIMEOUT }}
+        run: |
+          {
+            printf 'OPENAI_API_KEY=%s\n'                    "$OPENAI_API_KEY"
+            printf 'OPENAI_MODEL=%s\n'                      "$OPENAI_MODEL"
+            printf 'NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=%s\n' "$NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY"
+            printf 'CLERK_SECRET_KEY=%s\n'                  "$CLERK_SECRET_KEY"
+            printf 'CLERK_JWKS_URL=%s\n'                    "$CLERK_JWKS_URL"
+            printf 'CLERK_FRONTEND_API_URL=%s\n'            "$CLERK_FRONTEND_API_URL"
+            printf 'CLERK_AUTHORIZED_PARTIES=%s\n'          "$CLERK_AUTHORIZED_PARTIES"
+            printf 'COUNSELAI_SITE_ADDRESS=%s\n'            "$COUNSELAI_SITE_ADDRESS"
+            printf 'ACME_EMAIL=%s\n'                        "$ACME_EMAIL"
+            printf 'TRUSTED_HOSTS=%s\n'                     "$TRUSTED_HOSTS"
+            printf 'FORCE_HTTPS=%s\n'                       "$FORCE_HTTPS"
+            printf 'CORS_ORIGINS=%s\n'                      "$CORS_ORIGINS"
+            printf 'LOG_LEVEL=%s\n'                         "$LOG_LEVEL"
+            printf 'WEB_CONCURRENCY=%s\n'                   "$WEB_CONCURRENCY"
+            printf 'GUNICORN_THREADS=%s\n'                  "$GUNICORN_THREADS"
+            printf 'GUNICORN_TIMEOUT=%s\n'                  "$GUNICORN_TIMEOUT"
+          } > /tmp/deploy.env
+          scp -i ~/.ssh/deploy_key /tmp/deploy.env "$EC2_USER@$EC2_HOST:$EC2_DEPLOY_PATH/.env"
+          rm -f /tmp/deploy.env
+
+      - name: Rebuild on EC2
+        run: |
+          ssh -i ~/.ssh/deploy_key "$EC2_USER@$EC2_HOST" \
+            "set -e; cd $EC2_DEPLOY_PATH; docker compose up -d --build"
+
+      - name: Health check
+        env:
+          SITE_ADDRESS: ${{ secrets.COUNSELAI_SITE_ADDRESS }}
+        run: |
+          sleep 45
+          curl --fail --retry 5 --retry-delay 10 "https://${SITE_ADDRESS}/health"

@@ -103,7 +103,7 @@ services:
       - caddy_config:/config
     environment:
       COUNSELAI_SITE_ADDRESS: ${COUNSELAI_SITE_ADDRESS:-:8080}
-      ACME_EMAIL: ${ACME_EMAIL}
+      ACME_EMAIL: ${ACME_EMAIL:-}
     read_only: true
     tmpfs:
       - /tmp

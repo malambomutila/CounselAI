@@ -288,6 +288,7 @@ def post_final_judgment(
             yield _sse_event("done", {"turn_n": turn_n,
                                        "conversation_id": req.conversation_id})
         except ValueError as e:
+            logger.warning("run_final_judgment rejected: %s", e)
             yield _sse_event("error", {"detail": str(e)})
         except Exception:
             logger.exception("run_final_judgment crashed")
@@ -331,6 +332,7 @@ def post_refine(
             yield _sse_event("done", {"turn_n": turn_n,
                                        "conversation_id": req.conversation_id})
         except ValueError as e:
+            logger.warning("run_followup rejected: %s", e)
             yield _sse_event("error", {"detail": str(e)})
         except Exception:
             logger.exception("run_followup crashed")

@@ -16,6 +16,7 @@ P/D/E are touched; after, J/S are included.
 """
 from __future__ import annotations
 
+import logging
 from typing import Dict, Generator, Optional, Tuple
 
 from backend.adapter import LLMAdapter
@@ -24,6 +25,8 @@ from backend.agents import (
 )
 from backend.formatting import format_expert, format_judge, score_rows, overall_summary
 from backend.settings import agent_configs
+
+logger = logging.getLogger(__name__)
 
 # 7-tuple matching the Gradio outputs in ui/app.py
 PipelineUpdate = Tuple[str, str, str, str, list, str, str]
@@ -61,6 +64,11 @@ def _empty(plaintiff_msg: str = "") -> PipelineUpdate:
     return (plaintiff_msg, "", "", JUDGE_PLACEHOLDER, [], STRATEGY_PLACEHOLDER, "")
 
 
+def _agent_error(name: str, exc: Exception) -> ValueError:
+    logger.exception("%s agent failed", name)
+    return ValueError(f"{name} failed to respond. Please try again.")
+
+
 # ── Phase 1 ────────────────────────────────────────────────────────────────
 
 def run_initial(
@@ -80,15 +88,24 @@ def run_initial(
         return {}
 
     yield _empty("Plaintiff's Counsel is building your argument...")
-    p_arg = plaintiff_counsel.argue(case, area, position, country)
+    try:
+        p_arg = plaintiff_counsel.argue(case, area, position, country)
+    except Exception as exc:
+        raise _agent_error("Plaintiff's Counsel", exc) from exc
 
     yield (p_arg, "Defense Counsel is preparing counter-arguments...",
            "", JUDGE_PLACEHOLDER, [], STRATEGY_PLACEHOLDER, "")
-    d_arg = defense_counsel.argue(case, area, position, country)
+    try:
+        d_arg = defense_counsel.argue(case, area, position, country)
+    except Exception as exc:
+        raise _agent_error("Defense Counsel", exc) from exc
 
     yield (p_arg, d_arg, "Expert Witness is analysing applicable law and precedents...",
            JUDGE_PLACEHOLDER, [], STRATEGY_PLACEHOLDER, "")
-    expert = expert_witness.analyse(case, area, country, p_arg, d_arg)
+    try:
+        expert = expert_witness.analyse(case, area, country, p_arg, d_arg)
+    except Exception as exc:
+        raise _agent_error("Expert Witness", exc) from exc
     expert_md = format_expert(expert)
 
     yield (p_arg, d_arg, expert_md, JUDGE_PLACEHOLDER, [], STRATEGY_PLACEHOLDER,
@@ -133,17 +150,23 @@ def run_final_judgment(
 
     yield (p_md, d_md, e_md, "Judge is evaluating argument strength...", [],
            STRATEGY_PLACEHOLDER, "")
-    judge_result = judge.evaluate(case, area, country, agents["plaintiff"],
-                                  agents["defense"], agents["expert"])
+    try:
+        judge_result = judge.evaluate(case, area, country, agents["plaintiff"],
+                                      agents["defense"], agents["expert"])
+    except Exception as exc:
+        raise _agent_error("Judge", exc) from exc
     j_md = format_judge(judge_result)
     rows = score_rows(judge_result)
     agents["judge"] = judge_result
 
     yield (p_md, d_md, e_md, j_md, rows,
            "Legal Strategist is preparing your case memo...", "")
-    strategy = strategist.advise(case, area, position, country,
-                                 agents["plaintiff"], agents["defense"],
-                                 agents["expert"], judge_result)
+    try:
+        strategy = strategist.advise(case, area, position, country,
+                                     agents["plaintiff"], agents["defense"],
+                                     agents["expert"], judge_result)
+    except Exception as exc:
+        raise _agent_error("Legal Strategist", exc) from exc
     agents["strategist"] = strategy
 
     summary = overall_summary(judge_result)
@@ -203,37 +226,52 @@ def run_followup(
     if target == "plaintiff":
         yield (f"Plaintiff's Counsel is reconsidering with: '{follow_up_text}'...",
                d_md, e_md, j_md, rows, s_md, sum_md)
-        agents["plaintiff"] = plaintiff_counsel.argue(case, area, position, country,
-                                                     follow_up=follow_up_text)
+        try:
+            agents["plaintiff"] = plaintiff_counsel.argue(case, area, position, country,
+                                                         follow_up=follow_up_text)
+        except Exception as exc:
+            raise _agent_error("Plaintiff's Counsel", exc) from exc
     elif target == "defense":
         yield (p_md, f"Defense Counsel is reconsidering with: '{follow_up_text}'...",
                e_md, j_md, rows, s_md, sum_md)
-        agents["defense"] = defense_counsel.argue(case, area, position, country,
-                                                  follow_up=follow_up_text)
+        try:
+            agents["defense"] = defense_counsel.argue(case, area, position, country,
+                                                      follow_up=follow_up_text)
+        except Exception as exc:
+            raise _agent_error("Defense Counsel", exc) from exc
     elif target == "expert":
         yield (p_md, d_md, f"Expert Witness is re-analysing with: '{follow_up_text}'...",
                j_md, rows, s_md, sum_md)
-        agents["expert"] = expert_witness.analyse(case, area, country,
-                                                  agents["plaintiff"],
-                                                  agents["defense"],
-                                                  follow_up=follow_up_text)
+        try:
+            agents["expert"] = expert_witness.analyse(case, area, country,
+                                                      agents["plaintiff"],
+                                                      agents["defense"],
+                                                      follow_up=follow_up_text)
+        except Exception as exc:
+            raise _agent_error("Expert Witness", exc) from exc
     elif target == "judge":
         yield (p_md, d_md, e_md, f"Judge is re-evaluating with: '{follow_up_text}'...",
                rows, s_md, sum_md)
-        agents["judge"] = judge.evaluate(case, area, country,
-                                         agents["plaintiff"],
-                                         agents["defense"],
-                                         agents["expert"],
-                                         follow_up=follow_up_text)
+        try:
+            agents["judge"] = judge.evaluate(case, area, country,
+                                             agents["plaintiff"],
+                                             agents["defense"],
+                                             agents["expert"],
+                                             follow_up=follow_up_text)
+        except Exception as exc:
+            raise _agent_error("Judge", exc) from exc
     elif target == "strategist":
         yield (p_md, d_md, e_md, j_md, rows,
                f"Legal Strategist is revising with: '{follow_up_text}'...", sum_md)
-        agents["strategist"] = strategist.advise(case, area, position, country,
-                                                 agents["plaintiff"],
-                                                 agents["defense"],
-                                                 agents["expert"],
-                                                 agents["judge"],
-                                                 follow_up=follow_up_text)
+        try:
+            agents["strategist"] = strategist.advise(case, area, position, country,
+                                                     agents["plaintiff"],
+                                                     agents["defense"],
+                                                     agents["expert"],
+                                                     agents["judge"],
+                                                     follow_up=follow_up_text)
+        except Exception as exc:
+            raise _agent_error("Legal Strategist", exc) from exc
 
     # Step 2: cascade — re-run downstream agents whose inputs have changed
     target_idx = AGENT_ORDER.index(target)
@@ -250,30 +288,42 @@ def run_followup(
     if target == "plaintiff":
         yield (p_md, "Defense Counsel is updating its counter-argument...",
                e_md, j_md, rows, s_md, sum_md)
-        agents["defense"] = defense_counsel.argue(case, area, position, country)
+        try:
+            agents["defense"] = defense_counsel.argue(case, area, position, country)
+        except Exception as exc:
+            raise _agent_error("Defense Counsel", exc) from exc
         d_md = agents["defense"]
     elif target == "defense":
         yield ("Plaintiff's Counsel is updating its argument...", d_md,
                e_md, j_md, rows, s_md, sum_md)
-        agents["plaintiff"] = plaintiff_counsel.argue(case, area, position, country)
+        try:
+            agents["plaintiff"] = plaintiff_counsel.argue(case, area, position, country)
+        except Exception as exc:
+            raise _agent_error("Plaintiff's Counsel", exc) from exc
         p_md = agents["plaintiff"]
 
     if target_idx < AGENT_ORDER.index("expert"):
         yield (p_md, d_md, "Expert Witness is re-analysing with updated arguments...",
                j_md, rows, s_md, sum_md)
-        agents["expert"] = expert_witness.analyse(case, area, country,
-                                                  agents["plaintiff"],
-                                                  agents["defense"])
+        try:
+            agents["expert"] = expert_witness.analyse(case, area, country,
+                                                      agents["plaintiff"],
+                                                      agents["defense"])
+        except Exception as exc:
+            raise _agent_error("Expert Witness", exc) from exc
         e_md = format_expert(agents["expert"])
 
     # Judge/strategist only cascade if judgment has already been pronounced.
     if judgment_present and target_idx < AGENT_ORDER.index("judge"):
         yield (p_md, d_md, e_md, "Judge is re-evaluating updated arguments...",
                rows, s_md, sum_md)
-        agents["judge"] = judge.evaluate(case, area, country,
-                                         agents["plaintiff"],
-                                         agents["defense"],
-                                         agents["expert"])
+        try:
+            agents["judge"] = judge.evaluate(case, area, country,
+                                             agents["plaintiff"],
+                                             agents["defense"],
+                                             agents["expert"])
+        except Exception as exc:
+            raise _agent_error("Judge", exc) from exc
         j_md = format_judge(agents["judge"])
         rows = score_rows(agents["judge"])
         sum_md = overall_summary(agents["judge"])
@@ -281,11 +331,14 @@ def run_followup(
     if judgment_present and target_idx < AGENT_ORDER.index("strategist"):
         yield (p_md, d_md, e_md, j_md, rows,
                "Legal Strategist is updating the memo...", sum_md)
-        agents["strategist"] = strategist.advise(case, area, position, country,
-                                                 agents["plaintiff"],
-                                                 agents["defense"],
-                                                 agents["expert"],
-                                                 agents["judge"])
+        try:
+            agents["strategist"] = strategist.advise(case, area, position, country,
+                                                     agents["plaintiff"],
+                                                     agents["defense"],
+                                                     agents["expert"],
+                                                     agents["judge"])
+        except Exception as exc:
+            raise _agent_error("Legal Strategist", exc) from exc
         s_md = agents["strategist"]
 
     # Final state matches whichever phase we're in

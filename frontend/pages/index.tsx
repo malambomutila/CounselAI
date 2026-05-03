@@ -19,8 +19,8 @@ const AGENTS = [
   {
     name: "Defense Counsel",
     desc: "Constructs the sharpest counter to every argument made",
-    borderColor: "#1e293b",
-    bg: "linear-gradient(90deg, var(--slate-tint), #ffffff 50%)",
+    borderColor: "#0F52FF",
+    bg: "linear-gradient(90deg, rgba(15, 82, 255, 0.08), #ffffff 50%)",
   },
   {
     name: "Expert Witness",

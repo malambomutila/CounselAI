@@ -444,16 +444,24 @@ def append_turn(user_id: str, conv_id: str, turn: Dict) -> int:
 
 
 def list_conversations(user_id: str, *, limit: int = 50) -> List[Dict]:
-    if STORE_BACKEND == "sqlite":
-        return _sqlite_list_conversations(user_id, limit)
-    if STORE_BACKEND == "ddb":
-        return _ddb_list_conversations(user_id, limit)
-    return _mem_list_conversations(user_id, limit)
+    try:
+        if STORE_BACKEND == "sqlite":
+            return _sqlite_list_conversations(user_id, limit)
+        if STORE_BACKEND == "ddb":
+            return _ddb_list_conversations(user_id, limit)
+        return _mem_list_conversations(user_id, limit)
+    except Exception:
+        logger.exception("list_conversations failed for user %s", user_id)
+        return []
 
 
 def load_conversation(user_id: str, conv_id: str) -> Optional[Dict]:
-    if STORE_BACKEND == "sqlite":
-        return _sqlite_load_conversation(user_id, conv_id)
-    if STORE_BACKEND == "ddb":
-        return _ddb_load_conversation(user_id, conv_id)
-    return _mem_load_conversation(user_id, conv_id)
+    try:
+        if STORE_BACKEND == "sqlite":
+            return _sqlite_load_conversation(user_id, conv_id)
+        if STORE_BACKEND == "ddb":
+            return _ddb_load_conversation(user_id, conv_id)
+        return _mem_load_conversation(user_id, conv_id)
+    except Exception:
+        logger.exception("load_conversation failed user=%s conv=%s", user_id, conv_id)
+        return None

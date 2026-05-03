@@ -756,6 +756,14 @@
   align-items: center;
 }
 
+.hero-h1 {
+  font-size: 58px;
+}
+
+.slide-h2 {
+  font-size: 46px;
+}
+
 .b2b-grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
@@ -770,7 +778,7 @@
 
 @media (max-width: 767px) {
   .slide-inner {
-    padding: 20px 18px 90px;
+    padding: 76px 18px 110px;
     justify-content: flex-start;
     align-items: flex-start;
     min-height: 0;

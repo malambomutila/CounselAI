@@ -132,6 +132,7 @@ jobs:
           CLERK_FRONTEND_API_URL: ${{ secrets.CLERK_FRONTEND_API_URL }}
           CLERK_AUTHORIZED_PARTIES: ${{ secrets.CLERK_AUTHORIZED_PARTIES }}
           MOOOTCOURT_SITE_ADDRESS: ${{ secrets.MOOOTCOURT_SITE_ADDRESS }}
+          MOOOTCOURT_WWW_ADDRESS: ${{ secrets.MOOOTCOURT_WWW_ADDRESS }}
           ACME_EMAIL: ${{ secrets.ACME_EMAIL }}
           TRUSTED_HOSTS: ${{ secrets.TRUSTED_HOSTS }}
           FORCE_HTTPS: ${{ secrets.FORCE_HTTPS }}
@@ -150,6 +151,7 @@ jobs:
             printf 'CLERK_FRONTEND_API_URL=%s\n'            "$CLERK_FRONTEND_API_URL"
             printf 'CLERK_AUTHORIZED_PARTIES=%s\n'          "$CLERK_AUTHORIZED_PARTIES"
             printf 'MOOOTCOURT_SITE_ADDRESS=%s\n'           "$MOOOTCOURT_SITE_ADDRESS"
+            printf 'MOOOTCOURT_WWW_ADDRESS=%s\n'           "$MOOOTCOURT_WWW_ADDRESS"
             printf 'ACME_EMAIL=%s\n'                        "$ACME_EMAIL"
             printf 'TRUSTED_HOSTS=%s\n'                     "$TRUSTED_HOSTS"
             printf 'FORCE_HTTPS=%s\n'                       "$FORCE_HTTPS"

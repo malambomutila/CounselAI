@@ -465,3 +465,65 @@ def load_conversation(user_id: str, conv_id: str) -> Optional[Dict]:
     except Exception:
         logger.exception("load_conversation failed user=%s conv=%s", user_id, conv_id)
         return None
+
+
+def delete_conversation(user_id: str, conv_id: str) -> bool:
+    """Delete a conversation and all its turns. Returns True if the row existed."""
+    try:
+        if STORE_BACKEND == "sqlite":
+            return _sqlite_delete_conversation(user_id, conv_id)
+        if STORE_BACKEND == "ddb":
+            return _ddb_delete_conversation(user_id, conv_id)
+        return _mem_delete_conversation(user_id, conv_id)
+    except Exception:
+        logger.exception("delete_conversation failed user=%s conv=%s", user_id, conv_id)
+        return False
+
+
+# ── Delete helpers per backend ──────────────────────────────────────────────
+
+def _sqlite_delete_conversation(user_id: str, conv_id: str) -> bool:
+    conn = _sqlite()
+    with _sqlite_lock:
+        cur = conn.execute(
+            "SELECT 1 FROM conversations WHERE user_id=? AND conversation_id=?",
+            (user_id, conv_id),
+        )
+        if cur.fetchone() is None:
+            return False
+        conn.execute(
+            "DELETE FROM turns WHERE user_id=? AND conversation_id=?",
+            (user_id, conv_id),
+        )
+        conn.execute(
+            "DELETE FROM conversations WHERE user_id=? AND conversation_id=?",
+            (user_id, conv_id),
+        )
+        conn.commit()
+    return True
+
+
+def _ddb_delete_conversation(user_id: str, conv_id: str) -> bool:
+    from boto3.dynamodb.conditions import Key
+    table = _ddb()
+    resp = table.query(
+        KeyConditionExpression=Key("PK").eq(f"USER#{user_id}")
+                               & Key("SK").begins_with(f"CONV#{conv_id}"),
+    )
+    items = resp.get("Items", [])
+    if not items:
+        return False
+    with table.batch_writer() as batch:
+        for item in items:
+            batch.delete_item(Key={"PK": item["PK"], "SK": item["SK"]})
+    return True
+
+
+def _mem_delete_conversation(user_id: str, conv_id: str) -> bool:
+    bucket = _mem.get(user_id, {})
+    keys = [k for k in bucket if k.startswith(f"CONV#{conv_id}")]
+    if not keys:
+        return False
+    for k in keys:
+        del bucket[k]
+    return True

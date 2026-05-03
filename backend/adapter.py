@@ -62,9 +62,16 @@ class LLMAdapter:
 
         try:
             response = self.client.chat.completions.create(**params)
-        except Exception:
-            logger.exception("OpenAI request failed for agent=%s", self.config.name)
-            raise
+        except Exception as exc:
+            # Log only the exception type and a truncated message — the full
+            # traceback from the OpenAI library can embed request metadata.
+            logger.error(
+                "OpenAI request failed for agent=%s: %s: %.200s",
+                self.config.name,
+                type(exc).__name__,
+                str(exc),
+            )
+            raise RuntimeError(f"LLM call failed for {self.config.name}") from exc
 
         content = response.choices[0].message.content or ""
         return content.strip()

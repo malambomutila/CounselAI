@@ -36,7 +36,8 @@ def _parse_json(raw: str) -> Dict:
                 return data
         except json.JSONDecodeError:
             pass
-    return {**_EMPTY, "judicial_assessment": raw}
+    # Do not propagate raw LLM text into rendered fields to prevent XSS.
+    return {**_EMPTY, "judicial_assessment": "[Judgment analysis unavailable — please retry.]"}
 
 
 class Judge:

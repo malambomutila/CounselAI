@@ -1,7 +1,7 @@
 import Head from "next/head";
 import Link from "next/link";
 import dynamic from "next/dynamic";
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { useRouter } from "next/router";
 import type { GetServerSideProps } from "next";
 import { SignInButton, SignedIn, SignedOut, useAuth } from "@clerk/nextjs";
@@ -99,6 +99,8 @@ function Landing() {
   const router = useRouter();
   const { isSignedIn, isLoaded } = useAuth();
   const [slide, setSlide] = useState(0);
+  const touchStartX = useRef(0);
+  const touchStartY = useRef(0);
 
   useEffect(() => {
     if (isLoaded && isSignedIn) router.replace("/app");
@@ -117,14 +119,25 @@ function Landing() {
     return () => window.removeEventListener("keydown", onKey);
   }, [go]);
 
+  const onTouchStart = (e: React.TouchEvent) => {
+    touchStartX.current = e.touches[0].clientX;
+    touchStartY.current = e.touches[0].clientY;
+  };
+
+  const onTouchEnd = (e: React.TouchEvent) => {
+    const dx = e.changedTouches[0].clientX - touchStartX.current;
+    const dy = e.changedTouches[0].clientY - touchStartY.current;
+    if (Math.abs(dx) < 40 && Math.abs(dy) < 40) return;
+    if (Math.abs(dx) > Math.abs(dy)) {
+      if (dx < 0) go(1);
+      else go(-1);
+    }
+  };
+
   const slideStyle = (n: number): React.CSSProperties => ({
     position: "absolute",
     inset: 0,
-    display: "flex",
-    flexDirection: "column",
-    justifyContent: "center",
-    alignItems: "center",
-    padding: "40px 72px",
+    overflowY: "auto",
     opacity: slide === n ? 1 : 0,
     pointerEvents: slide === n ? "all" : "none",
     transition: "opacity 0.4s ease",
@@ -148,7 +161,7 @@ function Landing() {
       </Head>
 
       {/* ── Persistent nav ─────────────────────────────────────────────── */}
-      <nav style={{
+      <nav className="landing-nav" style={{
         position: "fixed",
         top: 0, left: 0, right: 0,
         height: 60,
@@ -187,19 +200,23 @@ function Landing() {
       </nav>
 
       {/* ── Slide container ────────────────────────────────────────────── */}
-      <div style={{ position: "relative", height: "100vh", paddingTop: 60, overflow: "hidden", background: "var(--canvas)" }}>
+      <div
+        style={{ position: "relative", height: "100vh", paddingTop: 60, overflow: "hidden", background: "var(--canvas)" }}
+        onTouchStart={onTouchStart}
+        onTouchEnd={onTouchEnd}
+      >
 
         {/* ══ SLIDE 1: What is MoootCourt ══ */}
         <div style={slideStyle(0)}>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 72, width: "100%", maxWidth: 1060, alignItems: "center" }}>
+          <div className="slide-inner">
+          <div className="hero-grid">
 
             {/* Left */}
             <div>
               <span style={eyebrowStyle("var(--primary)")}>AI Legal Analysis</span>
-              <h1 style={{
+              <h1 className="hero-h1" style={{
                 fontFamily: "'Fraunces', Georgia, serif",
                 fontVariationSettings: '"opsz" 144, "SOFT" 40, "wght" 700',
-                fontSize: 58,
                 lineHeight: 1.0,
                 letterSpacing: "-0.03em",
                 color: "var(--ink)",
@@ -250,18 +267,19 @@ function Landing() {
               ))}
             </div>
           </div>
+          </div>
         </div>
 
         {/* ══ SLIDE 2: Law Firms / B2B ══ */}
         <div style={slideStyle(1)}>
+          <div className="slide-inner">
           <div style={{ width: "100%", maxWidth: 1060 }}>
 
             <div style={{ marginBottom: 36 }}>
               <span style={eyebrowStyle("var(--primary)")}>For Law Firms</span>
-              <h2 style={{
+              <h2 className="slide-h2" style={{
                 fontFamily: "'Fraunces', Georgia, serif",
                 fontVariationSettings: '"opsz" 144, "SOFT" 40, "wght" 700',
-                fontSize: 46,
                 lineHeight: 1.05,
                 letterSpacing: "-0.025em",
                 color: "var(--ink)",
@@ -279,7 +297,7 @@ function Landing() {
               </p>
             </div>
 
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 16 }}>
+            <div className="b2b-grid">
               {B2B_CARDS.map(c => (
                 <div key={c.num} style={{ ...card, padding: "24px 22px" }}>
                   <div style={{
@@ -311,18 +329,19 @@ function Landing() {
             </div>
 
           </div>
+          </div>
         </div>
 
         {/* ══ SLIDE 3: Everyone / B2C ══ */}
         <div style={slideStyle(2)}>
+          <div className="slide-inner">
           <div style={{ width: "100%", maxWidth: 1060 }}>
 
             <div style={{ marginBottom: 32 }}>
               <span style={eyebrowStyle("#d97706")}>For Everyone</span>
-              <h2 style={{
+              <h2 className="slide-h2" style={{
                 fontFamily: "'Fraunces', Georgia, serif",
                 fontVariationSettings: '"opsz" 144, "SOFT" 40, "wght" 700',
-                fontSize: 46,
                 lineHeight: 1.05,
                 letterSpacing: "-0.025em",
                 color: "var(--ink)",
@@ -339,7 +358,7 @@ function Landing() {
               </p>
             </div>
 
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 18 }}>
+            <div className="b2c-grid">
               {/* Left block */}
               <div style={{ ...card, padding: "26px 24px" }}>
                 <h3 style={{
@@ -385,6 +404,7 @@ function Landing() {
               </div>
             </div>
 
+          </div>
           </div>
         </div>
 

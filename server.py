@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import logging
 import os
+import uuid
 from pathlib import Path
 
 from fastapi import FastAPI
@@ -53,6 +54,16 @@ logger = logging.getLogger(__name__)
 
 
 app = FastAPI(title="MoootCourt", docs_url=None, redoc_url=None)
+
+
+class RequestIDMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request, call_next):
+        request_id = str(uuid.uuid4())
+        # Make the ID available to log-formatters and downstream handlers.
+        request.state.request_id = request_id
+        response = await call_next(request)
+        response.headers["X-Request-ID"] = request_id
+        return response
 
 
 class SecurityHeadersMiddleware(BaseHTTPMiddleware):
@@ -95,6 +106,8 @@ if FORCE_HTTPS:
 
 if SECURE_HEADERS_ENABLED:
     app.add_middleware(SecurityHeadersMiddleware)
+
+app.add_middleware(RequestIDMiddleware)
 
 app.include_router(api_router)
 reset_active_requests()

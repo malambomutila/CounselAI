@@ -19,6 +19,11 @@ from __future__ import annotations
 import logging
 from typing import Dict, Generator, Optional, Tuple
 
+
+class UserFacingError(Exception):
+    """Exception whose message is safe to return to the client."""
+    pass
+
 from backend.adapter import LLMAdapter
 from backend.agents import (
     PlaintiffCounsel, DefenseCounsel, ExpertWitness, Judge, LegalStrategist,
@@ -64,9 +69,9 @@ def _empty(plaintiff_msg: str = "") -> PipelineUpdate:
     return (plaintiff_msg, "", "", JUDGE_PLACEHOLDER, [], STRATEGY_PLACEHOLDER, "")
 
 
-def _agent_error(name: str, exc: Exception) -> ValueError:
+def _agent_error(name: str, exc: Exception) -> UserFacingError:
     logger.exception("%s agent failed", name)
-    return ValueError(f"{name} failed to respond. Please try again.")
+    return UserFacingError(f"{name} failed to respond. Please try again.")
 
 
 # ── Phase 1 ────────────────────────────────────────────────────────────────
@@ -132,12 +137,12 @@ def run_final_judgment(
     """Phase 2: Judge + Strategist run using whatever P/D/E outputs are
     currently in prev_turn (which may include user refinements)."""
     if not prev_turn or "agents" not in prev_turn:
-        raise ValueError("run_final_judgment requires a completed phase-1 turn")
+        raise UserFacingError("run_final_judgment requires a completed phase-1 turn")
 
     agents = dict(prev_turn["agents"])
     for required in ("plaintiff", "defense", "expert"):
         if required not in agents:
-            raise ValueError(f"prev_turn missing agent: {required}")
+            raise UserFacingError(f"prev_turn missing agent: {required}")
 
     case = prev_turn["case_description"]
     area = prev_turn["legal_area"]
@@ -198,11 +203,11 @@ def run_followup(
       target and any downstream agents.
     """
     if target not in AGENT_ORDER:
-        raise ValueError(f"Unknown agent: {target}")
+        raise UserFacingError(f"Unknown agent: {target}")
     if not follow_up_text.strip():
-        raise ValueError("Follow-up text is empty")
+        raise UserFacingError("Follow-up text is empty")
     if target in {"judge", "strategist"} and not _has_judgment(prev_turn):
-        raise ValueError(
+        raise UserFacingError(
             f"Cannot refine {target} before final judgment has been pronounced."
         )
 

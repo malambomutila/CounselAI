@@ -31,7 +31,8 @@ def _parse_json(raw: str) -> Dict:
                 return json.loads(m.group())
             except json.JSONDecodeError:
                 pass
-    return {**_EMPTY, "applicable_law": raw}
+    # Do not propagate raw LLM text into rendered fields to prevent XSS.
+    return {**_EMPTY, "applicable_law": "[Expert analysis unavailable — please retry.]"}
 
 
 class ExpertWitness:

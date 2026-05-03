@@ -2,7 +2,9 @@
 	encode zstd gzip
 
 	header {
-		Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+		# preload omitted: register moootcourt.com at hstspreload.org first,
+		# then add the preload directive.
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
 	}
 
 	@backend path /api/* /health
@@ -16,4 +18,10 @@
 	handle {
 		reverse_proxy frontend:3000
 	}
+}
+
+# Redirect www → apex. Set MOOOTCOURT_WWW_ADDRESS=www.yourdomain.com in production.
+# Defaults to :8081 locally so Caddy starts without error (that port is never exposed).
+{$MOOOTCOURT_WWW_ADDRESS::8081} {
+	redir https://{$MOOOTCOURT_SITE_ADDRESS}{uri} permanent
 }

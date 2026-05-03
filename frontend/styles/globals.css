@@ -733,3 +733,74 @@
     cursor: not-allowed;
   }
 }
+
+/* ─── Landing page — responsive layout ──────────────────────────────────── */
+
+.slide-inner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 40px 72px;
+  min-height: 100%;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.hero-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 72px;
+  width: 100%;
+  max-width: 1060px;
+  align-items: center;
+}
+
+.b2b-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+}
+
+.b2c-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 18px;
+}
+
+@media (max-width: 767px) {
+  .slide-inner {
+    padding: 20px 18px 90px;
+    justify-content: flex-start;
+    align-items: flex-start;
+    min-height: 0;
+  }
+
+  .hero-grid {
+    grid-template-columns: 1fr;
+    gap: 24px;
+  }
+
+  .b2b-grid,
+  .b2c-grid {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+
+  /* !important overrides inline styles on headings */
+  .hero-h1 {
+    font-size: 34px !important;
+    line-height: 1.1 !important;
+    margin-bottom: 14px !important;
+  }
+
+  .slide-h2 {
+    font-size: 26px !important;
+    line-height: 1.1 !important;
+    margin-bottom: 10px !important;
+  }
+
+  .landing-nav {
+    padding: 0 16px !important;
+  }
+}

@@ -30,6 +30,10 @@ from __future__ import annotations
 
 import json
 import logging
+import re
+import time
+import threading
+from collections import defaultdict
 from typing import Any, Dict, Generator, Literal, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Request
@@ -51,6 +55,7 @@ from backend.formatting import (
 from backend.pipeline import (
     JUDGE_PLACEHOLDER,
     STRATEGY_PLACEHOLDER,
+    UserFacingError,
     run_initial,
     run_final_judgment,
     run_followup,
@@ -65,6 +70,32 @@ from backend.usage import UsageLease, UsageLimitError, release, reserve
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api")
+
+# conv_id must match the 12-hex format produced by _new_conv_id()
+_CONV_ID_RE = re.compile(r"^[0-9a-f]{12}$")
+
+# ── Simple read-endpoint rate limiter ──────────────────────────────────────
+# Limits read calls (GET /conversations, GET /conversations/{id}) to at most
+# READ_RATE_LIMIT_PER_MINUTE per user, to prevent enumeration / resource abuse.
+READ_RATE_LIMIT_PER_MINUTE = 60
+_read_counts: Dict[str, list] = defaultdict(list)
+_read_lock = threading.Lock()
+
+
+def _read_rate_check(user_id: str) -> None:
+    now = time.monotonic()
+    window_start = now - 60
+    with _read_lock:
+        calls = _read_counts[user_id]
+        # Prune calls outside the 1-minute window
+        _read_counts[user_id] = [t for t in calls if t > window_start]
+        if len(_read_counts[user_id]) >= READ_RATE_LIMIT_PER_MINUTE:
+            raise HTTPException(
+                status_code=429,
+                detail="Too many requests. Please slow down.",
+                headers={"Retry-After": "60"},
+            )
+        _read_counts[user_id].append(now)
 
 
 # ── Auth dependency ────────────────────────────────────────────────────────
@@ -87,11 +118,11 @@ class InitialRequest(BaseModel):
 
 
 class FinalJudgmentRequest(BaseModel):
-    conversation_id: str
+    conversation_id: str = Field(..., pattern=r"^[0-9a-f]{12}$")
 
 
 class RefineRequest(BaseModel):
-    conversation_id: str
+    conversation_id: str = Field(..., pattern=r"^[0-9a-f]{12}$")
     target: Literal["plaintiff", "defense", "expert", "judge", "strategist"]
     follow_up_text: str = Field(..., min_length=1, max_length=FOLLOW_UP_MAX_CHARS)
 
@@ -131,10 +162,18 @@ def require_usage_slot(user_id: str = Depends(require_user)) -> UsageLease:
     try:
         return reserve(user_id)
     except UsageLimitError as e:
+        from backend.settings import (
+            RATE_LIMIT_MAX_REQUESTS_PER_HOUR,
+            RATE_LIMIT_MAX_REQUESTS_PER_DAY,
+        )
         raise HTTPException(
             status_code=429,
             detail=e.detail,
-            headers={"Retry-After": str(e.retry_after)},
+            headers={
+                "Retry-After": str(e.retry_after),
+                "RateLimit-Limit": str(RATE_LIMIT_MAX_REQUESTS_PER_HOUR),
+                "RateLimit-Reset": str(e.retry_after),
+            },
         )
 
 
@@ -152,20 +191,23 @@ def me(request: Request, user_id: str = Depends(require_user)):
 
 
 @router.get("/legal-areas")
-def legal_areas():
-    """Static — exposed so the frontend dropdown stays in sync with the
-    server-side enum without duplicating the list."""
+def legal_areas(user_id: str = Depends(require_user)):
+    """Legal area enum — gated behind auth to prevent unauthenticated enumeration."""
     return {"areas": LEGAL_AREAS}
 
 
 @router.get("/conversations")
-def list_conversations(user_id: str = Depends(require_user)):
+def list_conversations(request: Request, user_id: str = Depends(require_user)):
+    _read_rate_check(user_id)
     items = store.list_conversations(user_id)
     return {"conversations": items}
 
 
 @router.get("/conversations/{conv_id}")
-def load_conversation(conv_id: str, user_id: str = Depends(require_user)):
+def load_conversation(conv_id: str, request: Request, user_id: str = Depends(require_user)):
+    if not _CONV_ID_RE.match(conv_id):
+        raise HTTPException(status_code=400, detail="invalid conversation id")
+    _read_rate_check(user_id)
     convo = store.load_conversation(user_id, conv_id)
     if not convo:
         raise HTTPException(status_code=404, detail="conversation not found")
@@ -192,6 +234,16 @@ def load_conversation(conv_id: str, user_id: str = Depends(require_user)):
         "turns": turns,
         "state": state,
     }
+
+
+@router.delete("/conversations/{conv_id}", status_code=204)
+def delete_conversation(conv_id: str, user_id: str = Depends(require_user)):
+    """Delete a conversation and all its turns (GDPR right-to-erasure)."""
+    if not _CONV_ID_RE.match(conv_id):
+        raise HTTPException(status_code=400, detail="invalid conversation id")
+    deleted = store.delete_conversation(user_id, conv_id)
+    if not deleted:
+        raise HTTPException(status_code=404, detail="conversation not found")
 
 
 # ── SSE endpoints ──────────────────────────────────────────────────────────
@@ -243,7 +295,7 @@ def post_initial(
                 except Exception:
                     logger.exception("failed to persist initial conversation")
             yield _sse_event("done", {"conversation_id": conv_id})
-        except ValueError as e:
+        except UserFacingError as e:
             logger.warning("run_initial rejected: %s", e)
             yield _sse_event("error", {"detail": str(e)})
         except Exception:
@@ -287,7 +339,7 @@ def post_final_judgment(
                     logger.exception("failed to persist final-judgment turn")
             yield _sse_event("done", {"turn_n": turn_n,
                                        "conversation_id": req.conversation_id})
-        except ValueError as e:
+        except UserFacingError as e:
             logger.warning("run_final_judgment rejected: %s", e)
             yield _sse_event("error", {"detail": str(e)})
         except Exception:
@@ -331,7 +383,7 @@ def post_refine(
                     logger.exception("failed to persist refine turn")
             yield _sse_event("done", {"turn_n": turn_n,
                                        "conversation_id": req.conversation_id})
-        except ValueError as e:
+        except UserFacingError as e:
             logger.warning("run_followup rejected: %s", e)
             yield _sse_event("error", {"detail": str(e)})
         except Exception:

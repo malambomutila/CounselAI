@@ -152,7 +152,7 @@ def test_run_final_judgment_refuses_without_phase1():
 
     gen = run_final_judgment({"agents": {}, "case_description": "",
                               "legal_area": "", "user_position": ""})
-    with pytest.raises(ValueError, match="missing agent"):
+    with pytest.raises(Exception, match="missing agent"):
         next(gen)
 
 
@@ -183,7 +183,7 @@ def test_followup_judge_blocked_before_final_judgment():
 
     _, prev_turn = _drain(run_initial("breach", "Contract Law", "plaintiff", "United Kingdom"))
     gen = run_followup(prev_turn, "judge", "be tougher on the defense")
-    with pytest.raises(ValueError, match="before final judgment"):
+    with pytest.raises(Exception, match="before final judgment"):
         next(gen)
 
 

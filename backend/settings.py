@@ -64,6 +64,15 @@ CLERK_AUTHORIZED_PARTIES = [
     p.strip() for p in _optional("CLERK_AUTHORIZED_PARTIES").split(",") if p.strip()
 ]
 
+# In production with auth enabled, CLERK_AUTHORIZED_PARTIES must be set so the
+# azp claim is verified. An empty list means any Clerk origin is accepted.
+if _optional("APP_ENV") == "production" and bool(CLERK_JWKS_URL) and not CLERK_AUTHORIZED_PARTIES:
+    raise RuntimeError(
+        "CLERK_AUTHORIZED_PARTIES must be set in production. "
+        "Set it to the comma-separated list of allowed frontend origins "
+        "(e.g. https://moootcourt.com,https://www.moootcourt.com)."
+    )
+
 # Persistence has three possible backends, picked in this order:
 #   1. SQLite — set SQLITE_PATH to a writable file path (default for local).
 #   2. DynamoDB — set DDB_TABLE (and don't set SQLITE_PATH).
@@ -116,11 +125,15 @@ CONTENT_SECURITY_POLICY = _optional(
     "CONTENT_SECURITY_POLICY",
     (
         "default-src 'self'; "
-        "script-src 'self' 'unsafe-inline' https://*.clerk.accounts.dev; "
+        # Clerk SDK injects inline scripts; unsafe-inline is required for it to
+        # function. Scope is limited to clerk.com CDN + self. Set a strict
+        # CONTENT_SECURITY_POLICY env var in production to override.
+        "script-src 'self' 'unsafe-inline' https://clerk.com https://*.clerk.com https://*.clerk.accounts.dev; "
         "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
         "font-src 'self' https://fonts.gstatic.com data:; "
         "img-src 'self' data: https:; "
-        "connect-src 'self' https://*.clerk.accounts.dev; "
+        "connect-src 'self' https://clerk.com https://*.clerk.com https://*.clerk.accounts.dev; "
+        "worker-src 'none'; "
         "object-src 'none'; "
         "base-uri 'self'; "
         "frame-ancestors 'none'; "

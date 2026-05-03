@@ -1,6 +1,18 @@
 import ReactMarkdown from "react-markdown";
 import remarkBreaks from "remark-breaks";
 import remarkGfm from "remark-gfm";
+import rehypeSanitize, { defaultSchema } from "rehype-sanitize";
+
+// Extend the default schema to allow markdown-generated links and standard attributes
+// while blocking <script>, <iframe>, event handlers, and javascript: URLs.
+const sanitizeSchema = {
+  ...defaultSchema,
+  attributes: {
+    ...defaultSchema.attributes,
+    a: [["href", /^(?!javascript:)/i], "title", "target", "rel"],
+    "*": ["className"],
+  },
+};
 
 interface MarkdownProps {
   source: string;
@@ -19,8 +31,13 @@ export function Markdown({ source, placeholder, className }: MarkdownProps) {
     .join(" ");
   return (
     <div className={cls}>
-      <ReactMarkdown remarkPlugins={[remarkGfm, remarkBreaks]}>
-        {source || (placeholder ? "" : "")}
+      <ReactMarkdown
+        remarkPlugins={[remarkGfm, remarkBreaks]}
+        rehypePlugins={[[rehypeSanitize, sanitizeSchema]]}
+        disallowedElements={["script", "iframe", "object", "embed"]}
+        unwrapDisallowed
+      >
+        {source || ""}
       </ReactMarkdown>
     </div>
   );

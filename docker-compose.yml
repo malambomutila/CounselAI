@@ -103,6 +103,7 @@ services:
       - caddy_config:/config
     environment:
       MOOOTCOURT_SITE_ADDRESS: ${MOOOTCOURT_SITE_ADDRESS:-:8080}
+      MOOOTCOURT_WWW_ADDRESS: ${MOOOTCOURT_WWW_ADDRESS:-:8081}
       ACME_EMAIL: ${ACME_EMAIL:-}
     read_only: true
     tmpfs:

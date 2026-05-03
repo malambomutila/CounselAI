@@ -1,6 +1,3 @@
-/* Editorial legal-tech UI — fonts, design tokens, agent-card system.
-   Mirrors the rules in the (now-deleted) ui/theme.py CUSTOM_CSS, ported to
-   Tailwind layers so component classes can compose with @apply. */
 
 @import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght,SOFT@9..144,400..900,0..100&family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&display=swap');
 
@@ -588,13 +585,21 @@
     @apply flex-1 px-3 py-2 border border-hairline rounded-sm text-sm;
   }
   .agent-footer button {
-    @apply px-4 py-2 rounded-sm text-white text-sm font-semibold transition-colors;
+    @apply px-4 py-2 rounded-sm text-white text-sm font-semibold;
     background: var(--primary);
+    border: 1px solid #000000;
     min-width: 80px;
+    transition: background 0.15s ease, color 0.15s ease;
   }
-  .agent-footer button:hover { background: var(--primary-dark); }
+  .agent-footer button:hover {
+    background: #ffffff;
+    color: #000000;
+    border-color: #000000;
+  }
   .agent-footer button:disabled {
     background: #cbd5e1;
+    border-color: #cbd5e1;
+    color: #ffffff;
     cursor: not-allowed;
   }
 
@@ -709,16 +714,22 @@
     font-weight: 600;
     padding: 12px 32px;
     border-radius: 6px;
-    border: none;
+    border: 1px solid #000000;
     letter-spacing: 0.005em;
     font-size: 14.5px;
     cursor: pointer;
     box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04), inset 0 1px 0 rgba(255, 255, 255, 0.12);
-    transition: background 0.15s ease;
+    transition: background 0.15s ease, color 0.15s ease;
   }
-  .cta-primary:hover { background: var(--primary-dark); }
+  .cta-primary:hover {
+    background: #ffffff;
+    color: #000000;
+    border-color: #000000;
+  }
   .cta-primary:disabled {
     background: #cbd5e1;
+    border-color: #cbd5e1;
+    color: #ffffff;
     cursor: not-allowed;
   }
 }

@@ -46,7 +46,7 @@ function apiErrorMessage(e: unknown): { msg: string; isAuth: boolean } {
 
 // localStorage key per Clerk user — so signing in as user B doesn't restore
 // user A's last open conversation. Scoped by sub; the sub itself is opaque.
-const lastConvKey = (userId: string) => `counselai:lastConv:${userId}`;
+const lastConvKey = (userId: string) => `moootcourt:lastConv:${userId}`;
 
 function MoootCourtApp() {
   const router = useRouter();

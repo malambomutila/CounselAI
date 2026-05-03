@@ -1,4 +1,4 @@
-{$COUNSELAI_SITE_ADDRESS::8080} {
+{$MOOOTCOURT_SITE_ADDRESS::8080} {
 	encode zstd gzip
 
 	header {

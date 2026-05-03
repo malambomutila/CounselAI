@@ -23,7 +23,7 @@ build:
 	export $$(grep -v '^#' .env | xargs) && \
 	docker build \
 	  --build-arg NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY="$$NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY" \
-	  -t counselai:latest .
+	  -t moootcourt:latest .
 
 run:
 	export $$(grep -v '^#' .env | xargs) && \
@@ -36,7 +36,7 @@ run:
 	  -e OPENAI_MODEL="$$OPENAI_MODEL" \
 	  -e DDB_TABLE="$$DDB_TABLE" \
 	  -e DDB_REGION="$$DDB_REGION" \
-	  counselai:latest
+	  moootcourt:latest
 
 prod-up:
 	docker compose up -d --build
@@ -49,7 +49,7 @@ prod-logs:
 
 backup-sqlite:
 	mkdir -p data/backups
-	test -f data/counselai.sqlite && cp data/counselai.sqlite data/backups/counselai-$$(date +%Y%m%d%H%M%S).sqlite
+	test -f data/moootcourt.sqlite && cp data/moootcourt.sqlite data/backups/moootcourt-$$(date +%Y%m%d%H%M%S).sqlite
 
 # ── Tidy ──────────────────────────────────────────────────────────────────
 

@@ -1,6 +1,6 @@
 services:
   app:
-    image: ${COUNSELAI_BACKEND_IMAGE:-counselai-backend:latest}
+    image: ${MOOOTCOURT_BACKEND_IMAGE:-moootcourt-backend:latest}
     build:
       context: .
     init: true
@@ -15,9 +15,9 @@ services:
       FORCE_HTTPS: ${FORCE_HTTPS:-false}
       SECURE_HEADERS_ENABLED: "true"
       TRUSTED_HOSTS: ${TRUSTED_HOSTS:-localhost,127.0.0.1}
-      SQLITE_PATH: /var/lib/counselai/data/counselai.sqlite
-      SQLITE_BACKUP_DIR: /var/lib/counselai/data/backups
-      DATA_ROOT: /var/lib/counselai/data
+      SQLITE_PATH: /var/lib/moootcourt/data/moootcourt.sqlite
+      SQLITE_BACKUP_DIR: /var/lib/moootcourt/data/backups
+      DATA_ROOT: /var/lib/moootcourt/data
       RATE_LIMIT_ENABLED: ${RATE_LIMIT_ENABLED:-true}
       # 172.16.0.0/12 covers the entire Docker default bridge CIDR range so
       # only Caddy (on the internal Docker network) can set X-Forwarded-For.
@@ -28,7 +28,7 @@ services:
       GUNICORN_THREADS: ${GUNICORN_THREADS:-4}
       GUNICORN_TIMEOUT: ${GUNICORN_TIMEOUT:-300}
     volumes:
-      - counselai_data:/var/lib/counselai/data
+      - moootcourt_data:/var/lib/moootcourt/data
     expose:
       - "8080"
     read_only: true
@@ -48,7 +48,7 @@ services:
         max-file: "3"
 
   frontend:
-    image: ${COUNSELAI_FRONTEND_IMAGE:-counselai-frontend:latest}
+    image: ${MOOOTCOURT_FRONTEND_IMAGE:-moootcourt-frontend:latest}
     build:
       context: ./frontend
       args:
@@ -94,7 +94,7 @@ services:
       frontend:
         condition: service_healthy
     ports:
-      - "${COUNSELAI_PUBLIC_HTTP_PORT:-8080}:8080"
+      - "${MOOOTCOURT_PUBLIC_HTTP_PORT:-8080}:8080"
       - "80:80"
       - "443:443"
     volumes:
@@ -102,7 +102,7 @@ services:
       - caddy_data:/data
       - caddy_config:/config
     environment:
-      COUNSELAI_SITE_ADDRESS: ${COUNSELAI_SITE_ADDRESS:-:8080}
+      MOOOTCOURT_SITE_ADDRESS: ${MOOOTCOURT_SITE_ADDRESS:-:8080}
       ACME_EMAIL: ${ACME_EMAIL:-}
     read_only: true
     tmpfs:
@@ -121,6 +121,6 @@ services:
         max-file: "3"
 
 volumes:
-  counselai_data:
+  moootcourt_data:
   caddy_data:
   caddy_config:

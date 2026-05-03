@@ -76,7 +76,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Build backend image
-        run: docker build -t counselai:ci .
+        run: docker build -t moootcourt:ci .
 
       - name: Build frontend image
         env:
@@ -84,7 +84,7 @@ jobs:
         run: |
           docker build \
             --build-arg NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY="$NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY" \
-            -t counselai-frontend:ci ./frontend
+            -t moootcourt-frontend:ci ./frontend
 
   deploy:
     needs: [backend, frontend, docker]
@@ -131,7 +131,7 @@ jobs:
           CLERK_JWKS_URL: ${{ secrets.CLERK_JWKS_URL }}
           CLERK_FRONTEND_API_URL: ${{ secrets.CLERK_FRONTEND_API_URL }}
           CLERK_AUTHORIZED_PARTIES: ${{ secrets.CLERK_AUTHORIZED_PARTIES }}
-          COUNSELAI_SITE_ADDRESS: ${{ secrets.COUNSELAI_SITE_ADDRESS }}
+          MOOOTCOURT_SITE_ADDRESS: ${{ secrets.MOOOTCOURT_SITE_ADDRESS }}
           ACME_EMAIL: ${{ secrets.ACME_EMAIL }}
           TRUSTED_HOSTS: ${{ secrets.TRUSTED_HOSTS }}
           FORCE_HTTPS: ${{ secrets.FORCE_HTTPS }}
@@ -149,7 +149,7 @@ jobs:
             printf 'CLERK_JWKS_URL=%s\n'                    "$CLERK_JWKS_URL"
             printf 'CLERK_FRONTEND_API_URL=%s\n'            "$CLERK_FRONTEND_API_URL"
             printf 'CLERK_AUTHORIZED_PARTIES=%s\n'          "$CLERK_AUTHORIZED_PARTIES"
-            printf 'COUNSELAI_SITE_ADDRESS=%s\n'            "$COUNSELAI_SITE_ADDRESS"
+            printf 'MOOOTCOURT_SITE_ADDRESS=%s\n'           "$MOOOTCOURT_SITE_ADDRESS"
             printf 'ACME_EMAIL=%s\n'                        "$ACME_EMAIL"
             printf 'TRUSTED_HOSTS=%s\n'                     "$TRUSTED_HOSTS"
             printf 'FORCE_HTTPS=%s\n'                       "$FORCE_HTTPS"
@@ -169,7 +169,7 @@ jobs:
 
       - name: Health check
         env:
-          SITE_ADDRESS: ${{ secrets.COUNSELAI_SITE_ADDRESS }}
+          SITE_ADDRESS: ${{ secrets.MOOOTCOURT_SITE_ADDRESS }}
         run: |
           sleep 45
           curl --fail --retry 5 --retry-delay 10 "https://${SITE_ADDRESS}/health"

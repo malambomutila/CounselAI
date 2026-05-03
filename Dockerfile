@@ -8,7 +8,7 @@ RUN apt-get update \
 
 RUN pip install --no-cache-dir uv
 
-RUN addgroup --system counselai && adduser --system --ingroup counselai counselai
+RUN addgroup --system moootcourt && adduser --system --ingroup moootcourt moootcourt
 
 COPY pyproject.toml uv.lock ./
 RUN uv sync --frozen --no-install-project
@@ -18,21 +18,21 @@ COPY backend ./backend
 COPY scripts/start-prod.sh ./scripts/start-prod.sh
 
 RUN chmod +x ./scripts/start-prod.sh \
- && mkdir -p /var/lib/counselai/data /var/log/counselai \
- && chown -R counselai:counselai /app /var/lib/counselai /var/log/counselai
+ && mkdir -p /var/lib/moootcourt/data /var/log/moootcourt \
+ && chown -R moootcourt:moootcourt /app /var/lib/moootcourt /var/log/moootcourt
 
 ENV HOME=/tmp
 ENV APP_ENV=production
 ENV SERVER_HOST=0.0.0.0
 ENV SERVER_PORT=8080
-ENV SQLITE_PATH=/var/lib/counselai/data/counselai.sqlite
-ENV DATA_ROOT=/var/lib/counselai/data
+ENV SQLITE_PATH=/var/lib/moootcourt/data/moootcourt.sqlite
+ENV DATA_ROOT=/var/lib/moootcourt/data
 ENV FORCE_HTTPS=false
 ENV PYTHONUNBUFFERED=1
 
-USER counselai
+USER moootcourt
 
-VOLUME ["/var/lib/counselai/data"]
+VOLUME ["/var/lib/moootcourt/data"]
 
 EXPOSE 8080
 

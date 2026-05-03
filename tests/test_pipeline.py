@@ -239,7 +239,7 @@ def test_store_inmemory_round_trip(monkeypatch):
 
 def test_store_sqlite_round_trip(monkeypatch, tmp_path):
     """SQLite backend creates the file, persists turns, returns them on load."""
-    db_path = tmp_path / "counselai.sqlite"
+    db_path = tmp_path / "moootcourt.sqlite"
     monkeypatch.setattr(store, "STORE_BACKEND", "sqlite")
     monkeypatch.setattr(store, "SQLITE_PATH", str(db_path))
     monkeypatch.setattr(store, "_sqlite_conn", None)  # force re-init for this test

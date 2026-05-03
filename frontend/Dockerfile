@@ -25,14 +25,14 @@ ENV PORT=3000
 ENV HOSTNAME=0.0.0.0
 ENV HOME=/tmp
 
-RUN addgroup --system counselai && adduser --system --ingroup counselai counselai
+RUN addgroup --system moootcourt && adduser --system --ingroup moootcourt moootcourt
 
 # standalone output is a self-contained server.js — no npm or node_modules needed.
-COPY --from=builder --chown=counselai:counselai /app/.next/standalone ./
-COPY --from=builder --chown=counselai:counselai /app/.next/static ./.next/static
-COPY --from=builder --chown=counselai:counselai /app/public ./public
+COPY --from=builder --chown=moootcourt:moootcourt /app/.next/standalone ./
+COPY --from=builder --chown=moootcourt:moootcourt /app/.next/static ./.next/static
+COPY --from=builder --chown=moootcourt:moootcourt /app/public ./public
 
-USER counselai
+USER moootcourt
 
 EXPOSE 3000
 

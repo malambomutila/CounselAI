@@ -68,8 +68,8 @@ CLERK_AUTHORIZED_PARTIES = [
 #   1. SQLite — set SQLITE_PATH to a writable file path (default for local).
 #   2. DynamoDB — set DDB_TABLE (and don't set SQLITE_PATH).
 #   3. In-memory — both empty, conversations vanish on restart.
-SQLITE_PATH = _optional("SQLITE_PATH", "./data/counselai.sqlite")
-DDB_TABLE = _optional("DDB_TABLE", "counselai-dev")
+SQLITE_PATH = _optional("SQLITE_PATH", "./data/moootcourt.sqlite")
+DDB_TABLE = _optional("DDB_TABLE", "moootcourt-dev")
 DDB_REGION = _optional("DDB_REGION") or _optional("DEFAULT_AWS_REGION", "eu-west-2")
 
 if SQLITE_PATH:

@@ -4,7 +4,7 @@
 
 A multi-agent legal analysis tool that puts five AI legal specialists on your case simultaneously.
 
-> Originally built as **CounselAI**, an Andela AI Engineering Bootcamp capstone project.
+> Originally built as **MoootCourt**, an Andela AI Engineering Bootcamp capstone project.
 
 ---
 
@@ -46,7 +46,7 @@ MoootCourt is a legal research and preparation tool. It is not legal advice and 
 
    ```bash
    git clone <repo-url>
-   cd counselai
+   cd moootcourt
    cp .env.example .env
    ```
 
@@ -112,7 +112,7 @@ MoootCourt is a legal research and preparation tool. It is not legal advice and 
 
    | Variable | What to set |
    |---|---|
-   | `COUNSELAI_SITE_ADDRESS` | Your domain (e.g. `example.com`) or `:8080` for HTTP-only |
+   | `MOOOTCOURT_SITE_ADDRESS` | Your domain (e.g. `example.com`) or `:8080` for HTTP-only |
    | `TRUSTED_HOSTS` | `your-domain.com,localhost,127.0.0.1` |
    | `CLERK_AUTHORIZED_PARTIES` | `https://your-domain.com` |
    | `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` | From Clerk dashboard |
@@ -124,15 +124,15 @@ MoootCourt is a legal research and preparation tool. It is not legal advice and 
 
    **Linux / macOS:**
    ```bash
-   sudo mkdir -p /var/lib/counselai/data/backups
-   sudo chown -R 1000:1000 /var/lib/counselai
+   sudo mkdir -p /var/lib/moootcourt/data/backups
+   sudo chown -R 1000:1000 /var/lib/moootcourt
    ```
 
    **Windows (PowerShell as Administrator):**
    ```powershell
-   New-Item -ItemType Directory -Force -Path "C:\counselai\data\backups"
+   New-Item -ItemType Directory -Force -Path "C:\moootcourt\data\backups"
    ```
-   Then update `SQLITE_PATH` in `.env` to `C:/counselai/data/counselai.sqlite`.
+   Then update `SQLITE_PATH` in `.env` to `C:/moootcourt/data/moootcourt.sqlite`.
 
 3. Build and start the stack:
 
@@ -159,7 +159,7 @@ docker compose down             # stop (data is preserved)
 docker compose up -d --build    # rebuild and restart after code changes
 ```
 
-SQLite data lives in the `counselai_data` Docker named volume and is not affected by restarts or rebuilds. To wipe all data: `docker compose down -v` (destructive).
+SQLite data lives in the `moootcourt_data` Docker named volume and is not affected by restarts or rebuilds. To wipe all data: `docker compose down -v` (destructive).
 
 ---
 
@@ -175,7 +175,7 @@ SQLite data lives in the `counselai_data` Docker named volume and is not affecte
 | `OPENAI_MODEL` | Model to use (default: `gpt-4.1-mini`) | No |
 | `SQLITE_PATH` | Path to SQLite database file | No |
 | `TRUSTED_HOSTS` | Hostnames accepted by the backend | Production |
-| `COUNSELAI_SITE_ADDRESS` | Domain passed to Caddy (e.g. `example.com`) | Docker |
+| `MOOOTCOURT_SITE_ADDRESS` | Domain passed to Caddy (e.g. `example.com`) | Docker |
 | `ACME_EMAIL` | Email for Let's Encrypt renewal notices | Optional |
 | `LOG_LEVEL` | Logging verbosity (`INFO`, `DEBUG`, etc.) | No |
 
